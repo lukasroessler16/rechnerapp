@@ -12,8 +12,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import { stripeClient } from "@/lib/stripe";
 import { validiereProjekt, projektZuMetadata } from "@/lib/payload";
+
 
 export const runtime = "nodejs";
 
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ demo: true });
     }
 
-    const stripe = new Stripe(schluessel);
+    const stripe = stripeClient(schluessel);
 
     // Basis-URL: bevorzugt aus Env, sonst aus dem Request ableiten
     const basis =
