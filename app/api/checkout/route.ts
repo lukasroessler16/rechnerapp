@@ -34,9 +34,11 @@ export async function POST(req: NextRequest) {
 
     const stripe = stripeClient(schluessel);
 
-    // Basis-URL: bevorzugt aus Env, sonst aus dem Request ableiten
-    const basis =
-      process.env.NEXT_PUBLIC_BASIS_URL ?? req.nextUrl.origin;
+        // Basis-URL: bevorzugt aus Env, sonst aus dem Request ableiten.
+    // Fehlt das Schema (https://), wird es automatisch ergänzt – Stripe
+    // lehnt success_url/cancel_url ohne Schema sonst ab.
+    const basisRoh = process.env.NEXT_PUBLIC_BASIS_URL || req.nextUrl.origin;
+    const basis = /^https?:\/\//.test(basisRoh) ? basisRoh : `https://${basisRoh}`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
