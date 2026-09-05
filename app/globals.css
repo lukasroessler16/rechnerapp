@@ -1,0 +1,246 @@
+/* ------------------------------------------------------------------ */
+/* Bewehrungsrechner – globales Stylesheet                              */
+/* Gestaltung: nüchtern-technisch (Beton-Grau + Signal-Orange)          */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --ink: #1c2430;
+  --ink-soft: #5a6472;
+  --line: #d9dde3;
+  --accent: #e8590c;
+  --accent-ink: #ffffff;
+  --ok: #2b8a3e;
+  --warn: #b54708;
+  --warn-bg: #fff4e5;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+a { color: var(--accent); }
+
+/* ---------- Kopf / Fuß ---------- */
+.kopf {
+  background: var(--ink);
+  color: #fff;
+  padding: 14px 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.kopf h1 { font-size: 18px; margin: 0; letter-spacing: 0.3px; }
+.kopf .untertitel { color: #9aa4b2; font-size: 13px; }
+
+.fuss {
+  max-width: 1200px;
+  margin: 40px auto 24px;
+  padding: 16px 24px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Layout Wizard + Skizze ---------- */
+.buehne {
+  max-width: 1200px;
+  margin: 24px auto 0;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: minmax(380px, 520px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .buehne { grid-template-columns: 1fr; }
+  .skizze-panel { position: static !important; }
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+}
+
+.skizze-panel { position: sticky; top: 16px; }
+.skizze-panel h3 { margin: 0 0 8px; font-size: 14px; color: var(--ink-soft); font-weight: 600; }
+.skizze-panel svg { width: 100%; height: auto; display: block; }
+
+/* ---------- Schrittleiste ---------- */
+.schritte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.schritte li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.schritte li.aktiv { background: var(--ink); border-color: var(--ink); color: #fff; }
+.schritte li.erledigt { border-color: var(--ok); color: var(--ok); }
+
+/* ---------- Formulare ---------- */
+h2.schritt-titel { font-size: 18px; margin: 0 0 4px; }
+p.schritt-hilfe { margin: 0 0 16px; color: var(--ink-soft); font-size: 13.5px; }
+
+.feld { margin-bottom: 14px; }
+.feld label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.feld .einheit { color: var(--ink-soft); font-weight: 400; }
+.feld input, .feld select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 15px;
+  background: #fff;
+  color: var(--ink);
+}
+.feld input:focus, .feld select:focus { outline: 2px solid #f3b08c; border-color: var(--accent); }
+.feld .hinweis { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+
+.reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.reihe3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ---------- Auswahlkarten (Bauteilwahl, Details) ---------- */
+.karten { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.karte {
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  background: #fff;
+  text-align: center;
+  transition: border-color 0.12s;
+}
+.karte:hover { border-color: #adb5bd; }
+.karte.gewaehlt { border-color: var(--accent); background: #fff8f3; }
+.karte svg { display: block; margin: 0 auto 8px; }
+.karte .karte-titel { font-weight: 600; font-size: 14px; }
+.karte .karte-text { font-size: 12px; color: var(--ink-soft); }
+
+/* Detail-Auswahl mit Bildvorschau */
+.detail-wahl { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.detail-wahl .bild {
+  flex: 0 0 84px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+}
+.detail-wahl .bild svg { width: 100%; height: auto; display: block; }
+.detail-wahl .wahl { flex: 1; }
+
+/* ---------- Öffnungsliste ---------- */
+.oeffnung-block {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #fafbfc;
+}
+.oeffnung-kopfzeile { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.oeffnung-kopfzeile strong { font-size: 13.5px; }
+
+.detail-vorschlag {
+  font-size: 12.5px;
+  background: #eef4ff;
+  border: 1px solid #c6d6f5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 8px;
+}
+.detail-vorschlag ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* ---------- Buttons ---------- */
+.knopfleiste { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
+button.knopf {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink);
+}
+button.knopf.primaer { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.knopf.primaer:hover { background: #d9480f; }
+button.knopf.klein { padding: 5px 10px; font-size: 12.5px; font-weight: 500; }
+button.knopf:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- Vorschau / Paywall ---------- */
+.kennwert-gitter { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+.kennwert {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.kennwert .kw-wert { font-size: 17px; font-weight: 700; }
+.kennwert .kw-name { font-size: 11.5px; color: var(--ink-soft); }
+
+table.positionsliste { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 10px; }
+table.positionsliste th, table.positionsliste td {
+  border-bottom: 1px solid var(--line);
+  padding: 5px 6px;
+  text-align: left;
+}
+table.positionsliste th { background: var(--bg); font-size: 11.5px; }
+td.zahl, th.zahl { text-align: right; }
+
+.gesperrt { position: relative; }
+.gesperrt .verwischt { filter: blur(4px); user-select: none; pointer-events: none; }
+.gesperrt .schloss {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius);
+}
+
+.warnbox {
+  background: var(--warn-bg);
+  border: 1px solid #f5c98c;
+  color: var(--warn);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin: 10px 0;
+}
+.warnbox ul { margin: 4px 0 0; padding-left: 18px; }
+
+.haftung {
+  font-size: 12px;
+  color: var(--ink-soft);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 14px;
+}
+
+/* ---------- Erfolgsseite ---------- */
+.mitte { max-width: 720px; margin: 40px auto; padding: 0 24px; }
+.download-reihe { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.download-reihe button.knopf { text-align: left; display: flex; justify-content: space-between; align-items: center; }
+
+.logo-vorschau { max-height: 60px; max-width: 200px; border: 1px solid var(--line); border-radius: 6px; padding: 4px; background: #fff; }
