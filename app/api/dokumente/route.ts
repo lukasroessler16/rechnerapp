@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import { stripeClient } from "@/lib/stripe";
 import { metadataZuProjekt, validiereProjekt } from "@/lib/payload";
 import { berechneBewehrung } from "@/lib/bewehrung";
 import { erzeugeBauplan } from "@/lib/pdf/bauplan";
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       /* ---------- Normalfall: bezahlte Stripe-Session ---------- */
       if (!schluessel)
         return NextResponse.json({ fehler: "Stripe nicht konfiguriert." }, { status: 500 });
-      const stripe = new Stripe(schluessel);
+      const stripe = stripeClient(schluessel);
       const session = await stripe.checkout.sessions.retrieve(String(body.session_id));
       if (session.payment_status !== "paid")
         return NextResponse.json(
