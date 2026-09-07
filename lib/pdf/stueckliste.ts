@@ -36,14 +36,14 @@ export async function erzeugeStueckliste(
   let y = 0;
 
   const spalten = [
-    { x: 15, b: 12, t: "Pos." },
-    { x: 27, b: 30, t: "Bezeichnung" },
-    { x: 57, b: 34, t: "Skizze" },
-    { x: 91, b: 30, t: "Abmessung [m]" },
-    { x: 121, b: 14, t: "Stk." },
-    { x: 135, b: 20, t: "kg/Stk." },
-    { x: 155, b: 18, t: "kg ges." },
-    { x: 173, b: 22, t: "Verwendung" },
+    { x: 15, b: 11, t: "Pos." },
+    { x: 26, b: 29, t: "Bezeichnung" },
+    { x: 55, b: 32, t: "Skizze" },
+    { x: 87, b: 27, t: "Abmessung [m]" },
+    { x: 114, b: 12, t: "Stk." },
+    { x: 126, b: 17, t: "kg/Stk." },
+    { x: 143, b: 17, t: "kg ges." },
+    { x: 160, b: 35, t: "Verwendung" },
   ];
 
   const kopfzeile = () => {
@@ -91,9 +91,8 @@ export async function erzeugeStueckliste(
     z.text(String(p.stueck), spalten[4].x + 1, y - 5.5, 8);
     z.text(de(p.gewichtJeStueck), spalten[5].x + 1, y - 5.5, 8);
     z.text(de(p.gewichtGesamt, 1), spalten[6].x + 1, y - 5.5, 8, { fett: true });
-    // Verwendung ggf. kürzen
-    const verwendung = p.verwendung.length > 26 ? p.verwendung.slice(0, 25) + "…" : p.verwendung;
-    z.text(verwendung, spalten[7].x + 1, y - 5.5, 5.5, { farbe: GRAU });
+    // Kurzform (1–3 Wörter) – der vollständige Text steht in der Biegeliste
+    z.text(p.kurz, spalten[7].x + 1, y - 5.5, 7, { farbe: GRAU });
     z.linie(15, y - ZEILE_H + 1, 195, y - ZEILE_H + 1, 0.2, GRAU);
     y -= ZEILE_H;
   }

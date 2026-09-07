@@ -6,14 +6,15 @@
  * `set`, die eine Producer-Funktion (alt → neu) entgegennimmt.
  */
 
-import { Projekt, Oeffnung } from "@/lib/types";
+import { useMemo } from "react";
+import { Projekt, Oeffnung, Parameter } from "@/lib/types";
 import {
   BETONKLASSEN,
   EXPOSITIONSKLASSEN,
   LAGERMATTEN,
   cnomAusExposition,
 } from "@/lib/normdaten";
-import { oeffnungsDetails } from "@/lib/bewehrung";
+import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
 import {
   IconWand,
   IconDecke,
@@ -342,43 +343,46 @@ export function Step4Anschluesse({ projekt, set }: StepProps) {
 
 export function Step5Parameter({ projekt, set }: StepProps) {
   const par = projekt.parameter;
+
+  /** Kurzschreibweise: einzelne Parameter ändern */
+  const setPar = (teil: Partial<Parameter>) =>
+    set((p) => ({ ...p, parameter: { ...p.parameter, ...teil } }));
+
+  /** Live-Rückmeldung: was ergibt sich aus der aktuellen Auswahl? */
+  const kennwerte = useMemo(() => berechneBewehrung(projekt).kennwerte, [projekt]);
+
+  /** Normprüfung: erfüllt die Betonklasse die Expositionsklasse? */
+  const expo = EXPOSITIONSKLASSEN.find((x) => x.name === par.expositionsklasse);
+  const iGewaehlt = BETONKLASSEN.findIndex((b) => b.name === par.betonklasse);
+  const iMindest = BETONKLASSEN.findIndex((b) => b.name === expo?.minBeton);
+  const betonZuNiedrig = iMindest >= 0 && iGewaehlt >= 0 && iGewaehlt < iMindest;
+
+  const vorschlagDeckung = cnomAusExposition(par.expositionsklasse);
+  const deckungAbweichend = par.betondeckung !== vorschlagDeckung;
+
   return (
     <>
       <h2 className="schritt-titel">5 · Bautechnische Parameter</h2>
       <p className="schritt-hilfe">
-        Auswahl nach EC2/ÖNORM. Die Betondeckung wird aus der Expositionsklasse
-        vorgeschlagen (c<sub>min,dur</sub> + 10 mm) und kann überschrieben werden.
+        Vorgaben nach EC2/ÖNORM B 1992-1-1. Alle Felder sind sinnvoll vorbelegt –
+        Sie müssen nur ändern, was von Ihrem Projekt abweicht.
       </p>
-      <div className="reihe">
+
+      {/* ---------------- Gruppe 1: Beton ---------------- */}
+      <section className="gruppe">
+        <h3 className="gruppe-titel">Beton</h3>
+
         <div className="feld">
-          <label>Betonklasse</label>
-          <select
-            value={par.betonklasse}
-            onChange={(e) =>
-              set((p) => ({ ...p, parameter: { ...p.parameter, betonklasse: e.target.value } }))
-            }
-          >
-            {BETONKLASSEN.map((b) => (
-              <option key={b.name} value={b.name}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="feld">
-          <label>Expositionsklasse</label>
+          <label>Expositionsklasse (Umgebungsbedingungen)</label>
           <select
             value={par.expositionsklasse}
             onChange={(e) => {
-              const expo = e.target.value;
-              set((p) => ({
-                ...p,
-                parameter: {
-                  ...p.parameter,
-                  expositionsklasse: expo,
-                  betondeckung: cnomAusExposition(expo),
-                },
-              }));
+              const wahl = e.target.value;
+              // Betondeckung automatisch mitführen, solange sie dem Vorschlag folgt
+              setPar({
+                expositionsklasse: wahl,
+                betondeckung: deckungAbweichend ? par.betondeckung : cnomAusExposition(wahl),
+              });
             }}
           >
             {EXPOSITIONSKLASSEN.map((x) => (
@@ -387,81 +391,141 @@ export function Step5Parameter({ projekt, set }: StepProps) {
               </option>
             ))}
           </select>
+          <div className="hinweis">
+            Bestimmt Mindestbetondeckung und die empfohlene Betonklasse.
+          </div>
+        </div>
+
+        <div className="reihe">
+          <div className="feld">
+            <label>Betonklasse</label>
+            <select
+              value={par.betonklasse}
+              onChange={(e) => setPar({ betonklasse: e.target.value })}
+            >
+              {BETONKLASSEN.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+            <div className="hinweis">
+              empfohlen für {par.expositionsklasse}: mindestens {expo?.minBeton}
+            </div>
+          </div>
+
+          <ZahlFeld
+            label="Betondeckung c_nom"
+            einheit="mm"
+            wert={par.betondeckung}
+            min={10}
+            max={80}
+            schritt={5}
+            onChange={(v) => setPar({ betondeckung: v })}
+            hinweis={
+              deckungAbweichend
+                ? `abweichend – Normvorschlag: ${vorschlagDeckung} mm`
+                : `Normvorschlag für ${par.expositionsklasse}`
+            }
+          />
+        </div>
+
+        {betonZuNiedrig && (
+          <div className="warnbox" style={{ marginTop: 4 }}>
+            {par.betonklasse} liegt unter der für {par.expositionsklasse} empfohlenen
+            Mindestklasse {expo?.minBeton}. Bitte Betonklasse anheben oder mit der
+            Tragwerksplanung abstimmen.
+          </div>
+        )}
+      </section>
+
+      {/* ---------------- Gruppe 2: Bewehrung ---------------- */}
+      <section className="gruppe">
+        <h3 className="gruppe-titel">Bewehrung</h3>
+
+        <div className="reihe">
+          <div className="feld">
+            <label>Betonstahl</label>
+            <select
+              value={par.stahlguete}
+              onChange={(e) => setPar({ stahlguete: e.target.value as "B550A" | "B550B" })}
+            >
+              <option value="B550B">B550B (Stabstahl, duktil)</option>
+              <option value="B550A">B550A (Matten)</option>
+            </select>
+          </div>
+
+          <div className="feld">
+            <label>Bewehrungslagen</label>
+            <select
+              value={par.lagen}
+              onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
+            >
+              <option value={1}>einlagig (mittig bzw. unten)</option>
+              <option value={2}>zweilagig (beidseitig)</option>
+            </select>
+            <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
+          </div>
+        </div>
+
+        <div className="reihe">
+          <div className="feld">
+            <label>Lagermatte</label>
+            <select value={par.matte} onChange={(e) => setPar({ matte: e.target.value })}>
+              <option value="auto">automatisch (wirtschaftlichste)</option>
+              {LAGERMATTEN.map((m) => (
+                <option key={m.name} value={m.name}>
+                  {m.name} ({m.as} cm²/m)
+                </option>
+              ))}
+            </select>
+            <div className="hinweis">
+              {par.matte === "auto"
+                ? "kleinste ausreichende Matte"
+                : "feste Vorgabe – Deckung wird geprüft"}
+            </div>
+          </div>
+
+          <div className="feld">
+            <label>Raster Anschlussbewehrung</label>
+            <select
+              value={par.stababstand}
+              onChange={(e) => setPar({ stababstand: Number(e.target.value) })}
+            >
+              <option value={150}>Ø10 / 15 cm (eng)</option>
+              <option value={200}>Ø10 / 20 cm</option>
+              <option value={250}>Ø10 / 25 cm (Standard)</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------------- Live-Ergebnis dieser Auswahl ---------------- */}
+      <h3 className="gruppe-titel" style={{ marginBottom: 8 }}>
+        Ergebnis dieser Auswahl
+      </h3>
+      <div className="kennwert-gitter">
+        <div className="kennwert">
+          <div className="kw-wert">{kennwerte.asMinHaupt.toLocaleString("de-AT")} cm²/m</div>
+          <div className="kw-name">erforderlich (As,min je Lage)</div>
+        </div>
+        <div className="kennwert">
+          <div className="kw-wert">{kennwerte.gewaehlteMatte}</div>
+          <div className="kw-name">
+            vorhanden: {kennwerte.asVorhanden.toLocaleString("de-AT")} cm²/m
+          </div>
+        </div>
+        <div className="kennwert">
+          <div className="kw-wert">{kennwerte.cnom} mm</div>
+          <div className="kw-name">Betondeckung c_nom</div>
         </div>
       </div>
-      <div className="reihe">
-        <ZahlFeld
-          label="Betondeckung c_nom"
-          einheit="mm"
-          wert={par.betondeckung}
-          min={10}
-          max={80}
-          schritt={5}
-          onChange={(v) => set((p) => ({ ...p, parameter: { ...p.parameter, betondeckung: v } }))}
-          hinweis={`Vorschlag für ${par.expositionsklasse}: ${cnomAusExposition(par.expositionsklasse)} mm`}
-        />
-        <div className="feld">
-          <label>Betonstahl</label>
-          <select
-            value={par.stahlguete}
-            onChange={(e) =>
-              set((p) => ({
-                ...p,
-                parameter: { ...p.parameter, stahlguete: e.target.value as "B550A" | "B550B" },
-              }))
-            }
-          >
-            <option value="B550B">B550B (Stabstahl, duktil)</option>
-            <option value="B550A">B550A (Matten)</option>
-          </select>
+      {kennwerte.asVorhanden < kennwerte.asMinHaupt && (
+        <div className="warnbox">
+          Die gewählte Matte deckt die Mindestbewehrung nicht ab. Bitte eine stärkere
+          Matte wählen oder auf „automatisch" stellen.
         </div>
-      </div>
-      <div className="reihe">
-        <div className="feld">
-          <label>Bewehrungslagen</label>
-          <select
-            value={par.lagen}
-            onChange={(e) =>
-              set((p) => ({ ...p, parameter: { ...p.parameter, lagen: Number(e.target.value) as 1 | 2 } }))
-            }
-          >
-            <option value={1}>einlagig (mittig / nur unten)</option>
-            <option value={2}>zweilagig (beidseitig / oben+unten)</option>
-          </select>
-          <div className="hinweis">Wände ab d ≥ 20 cm üblicherweise zweilagig</div>
-        </div>
-        <div className="feld">
-          <label>Lagermatte</label>
-          <select
-            value={par.matte}
-            onChange={(e) =>
-              set((p) => ({ ...p, parameter: { ...p.parameter, matte: e.target.value } }))
-            }
-          >
-            <option value="auto">automatisch (wirtschaftlichste)</option>
-            {LAGERMATTEN.map((m) => (
-              <option key={m.name} value={m.name}>
-                {m.name} ({m.as} cm²/m)
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="reihe">
-        <div className="feld">
-          <label>Raster Anschlussbewehrung</label>
-          <select
-            value={par.stababstand}
-            onChange={(e) =>
-              set((p) => ({ ...p, parameter: { ...p.parameter, stababstand: Number(e.target.value) } }))
-            }
-          >
-            <option value={150}>Ø10 / 15 cm</option>
-            <option value={200}>Ø10 / 20 cm</option>
-            <option value={250}>Ø10 / 25 cm</option>
-          </select>
-        </div>
-      </div>
+      )}
     </>
   );
 }

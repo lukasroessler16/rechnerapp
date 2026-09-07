@@ -22,6 +22,16 @@ c_nom = c_min,dur(S4)+10, Q-Lagermatten 6,00×2,30, Übergreifung ≈ 50·ds,
 Details: Anschlusseisen Ø10 L-0,80/0,80, Steckbügel Ø8/25, Zulagen 2Ø12,
 Schrägstäbe Ø12 L=1,00. KEINE statische Bemessung → Warnhinweise überall.
 
+## Änderungen nach v1
+- **Stripe auf Vercel:** `lib/stripe.ts` erzwingt `Stripe.createFetchHttpClient()`
+  (Node-https-Client verursacht dort Verbindungsabbrüche). Checkout-Route ergänzt
+  fehlendes `https://` in der Basis-URL automatisch.
+- **Position.kurz:** jede Position hat neben `verwendung` eine Kurzform (1–3 Wörter,
+  z. B. "Sturz F1") für die enge Verwendungs-Spalte der Stückliste. Öffnungen tragen
+  die Planmarke F/T/A + Nummer – identisch zu Skizze und Bauplan.
+- **Schritt 5** in Gruppen (Beton / Bewehrung) gegliedert, mit Normprüfung
+  Betonklasse ↔ Expositionsklasse und Live-Kennwerten am Fuß des Schritts.
+
 ## Offene Punkte / mögliche v2
 - Impressum in `app/rechtliches/page.tsx` ausfüllen (Platzhalter!).
 - Statiker-Review der Konstruktionsregeln vor Live-Verkauf.

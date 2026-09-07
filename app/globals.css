@@ -121,6 +121,27 @@ p.schritt-hilfe { margin: 0 0 16px; color: var(--ink-soft); font-size: 13.5px; }
 .reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .reihe3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 
+/* ---------- Feldgruppen (thematisch gebündelte Eingaben) ---------- */
+.gruppe {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fafbfc;
+  padding: 14px 16px 2px;
+  margin-bottom: 16px;
+}
+.gruppe-titel {
+  margin: 0 0 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.gruppe .feld input,
+.gruppe .feld select {
+  background: #fff;
+}
+
 /* ---------- Auswahlkarten (Bauteilwahl, Details) ---------- */
 .karten { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .karte {

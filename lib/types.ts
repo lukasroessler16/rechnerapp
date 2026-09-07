@@ -139,6 +139,11 @@ export interface Position {
   gewichtGesamt: number;
   /** Verwendungszweck, z. B. "Sturzbewehrung Öffnung 1" */
   verwendung: string;
+  /**
+   * Kurzform der Verwendung für enge Tabellenspalten (1–3 Wörter),
+   * z. B. "Sturz F1" – F1/T2/A3 entsprechen den Marken im Bauplan.
+   */
+  kurz: string;
 }
 
 /** Nachvollziehbare Kennwerte der Berechnung */

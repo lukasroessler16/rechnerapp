@@ -54,7 +54,8 @@ class Sammler {
     breite: number,
     stueck: number,
     gewichtProM2: number,
-    verwendung: string
+    verwendung: string,
+    kurz: string
   ) {
     const gewichtJeStueck = Math.round(laenge * breite * gewichtProM2 * 10) / 10;
     this.positionen.push({
@@ -66,6 +67,7 @@ class Sammler {
       gewichtJeStueck,
       gewichtGesamt: Math.round(gewichtJeStueck * stueck * 10) / 10,
       verwendung,
+      kurz,
     });
   }
 
@@ -74,7 +76,8 @@ class Sammler {
     form: Biegeform,
     segmente: number[],
     stueck: number,
-    verwendung: string
+    verwendung: string,
+    kurz: string
   ) {
     const laenge = cm(segmente.reduce((a, b) => a + b, 0));
     const seg = segmente.map(cm);
@@ -106,6 +109,7 @@ class Sammler {
       gewichtJeStueck,
       gewichtGesamt: Math.round(gewichtJeStueck * stueck * 100) / 100,
       verwendung,
+      kurz,
     });
   }
 
@@ -236,7 +240,8 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
         ? `Flächenbewehrung Wand, ${lagen}-lagig`
         : lagen === 2
           ? "Flächenbewehrung Decke, obere + untere Lage"
-          : "Flächenbewehrung Decke, untere Lage"
+          : "Flächenbewehrung Decke, untere Lage",
+      bauteil === "wand" ? "Fläche Wand" : "Fläche Decke"
     );
   }
 
@@ -247,28 +252,37 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
 
   /** Steckbügel (U-Form) entlang eines freien Randes */
   const randeinfassung = (strecke: number, wo: string) => {
-    s.stab(8, "buegel_u", [0.5, stegU, 0.5], stueckImRaster(strecke, 250), `Randeinfassung ${wo} (Steckbügel Ø8/25)`);
+    s.stab(
+      8,
+      "buegel_u",
+      [0.5, stegU, 0.5],
+      stueckImRaster(strecke, 250),
+      `Randeinfassung ${wo} (Steckbügel Ø8/25)`,
+      `Rand ${wo}`
+    );
   };
 
   /** L-förmige Anschlusseisen entlang eines Randes (je Lage) */
-  const anschlusseisen = (strecke: number, wo: string) => {
+  const anschlusseisen = (strecke: number, wo: string, kurz: string) => {
     s.stab(
       10,
       "winkel",
       [0.8, 0.8],
       stueckImRaster(strecke, abst) * lagen,
-      `Anschlussbewehrung ${wo} (Ø10/${abst / 10})`
+      `Anschlussbewehrung ${wo} (Ø10/${abst / 10})`,
+      kurz
     );
   };
 
   /** gerade Übergreifungseisen (Wand läuft weiter / Wandstoß) */
-  const stossEisen = (strecke: number, wo: string) => {
+  const stossEisen = (strecke: number, wo: string, kurz: string) => {
     s.stab(
       10,
       "gerade",
       [2 * lsAnschluss],
       stueckImRaster(strecke, abst) * lagen,
-      `Übergreifungsstoß ${wo} (Ø10/${abst / 10})`
+      `Übergreifungsstoß ${wo} (Ø10/${abst / 10})`,
+      kurz
     );
   };
 
@@ -278,15 +292,21 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
       hinweise.push("⚠ Wand ohne unteren Anschluss – Lagesicherheit statisch klären.");
       randeinfassung(masse.laenge, "unten");
     } else {
-      anschlusseisen(masse.laenge, {
-        bodenplatte: "Bodenplatte",
-        streifenfundament: "Streifenfundament",
-        decke_unter: "Decke unten",
-      }[anschluesse.unten]);
+      anschlusseisen(
+        masse.laenge,
+        {
+          bodenplatte: "Bodenplatte",
+          streifenfundament: "Streifenfundament",
+          decke_unter: "Decke unten",
+        }[anschluesse.unten],
+        "Anschluss unten"
+      );
     }
     // oberer Anschluss
-    if (anschluesse.oben === "decke_ueber") anschlusseisen(masse.laenge, "Decke oben");
-    else if (anschluesse.oben === "wand_weiter") stossEisen(masse.laenge, "Wand oben");
+    if (anschluesse.oben === "decke_ueber")
+      anschlusseisen(masse.laenge, "Decke oben", "Anschluss oben");
+    else if (anschluesse.oben === "wand_weiter")
+      stossEisen(masse.laenge, "Wand oben", "Stoß oben");
     else randeinfassung(masse.laenge, "oben");
     // seitliche Anschlüsse
     for (const seite of ["links", "rechts"] as const) {
@@ -297,9 +317,11 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
           "winkel",
           [0.8, 0.8],
           stueckImRaster(masse.hoehe, abst) * lagen,
-          `Eckausbildung ${seite} (Eckwinkel Ø10/${abst / 10})`
+          `Eckausbildung ${seite} (Eckwinkel Ø10/${abst / 10})`,
+          `Ecke ${seite}`
         );
-      } else if (art === "wandstoss") stossEisen(masse.hoehe, `Wandstoß ${seite}`);
+      } else if (art === "wandstoss")
+        stossEisen(masse.hoehe, `Wandstoß ${seite}`, `Stoß ${seite}`);
       else randeinfassung(masse.hoehe, seite);
     }
   } else {
@@ -327,32 +349,83 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
   const ls12 = uebergreifung(12); // Verankerung Ø12 ≈ 0,60 m
   oeffnungen.forEach((o: Oeffnung, i: number) => {
     const nr = i + 1;
+    // Planmarke wie in Skizze und Bauplan: F = Fenster, T = Tür, A = Aussparung
+    const marke = (o.typ === "fenster" ? "F" : o.typ === "tuer" ? "T" : "A") + nr;
     const reichtBisOben = o.y + o.hoehe >= masse.hoehe - 0.01;
     const hatBruestung = o.y > 0.01;
 
     if (bauteil === "wand") {
       // Sturzzulage: 2 Ø12 je Lage über der Öffnung
       if (!reichtBisOben)
-        s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * lagen, `Sturzzulage Öffnung ${nr}`);
+        s.stab(
+          12,
+          "gerade",
+          [o.breite + 2 * ls12],
+          2 * lagen,
+          `Sturzzulage Öffnung ${nr} (${marke})`,
+          `Sturz ${marke}`
+        );
       // Brüstungszulage: 2 Ø12 je Lage unter der Öffnung
       if (hatBruestung)
-        s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * lagen, `Brüstungszulage Öffnung ${nr}`);
+        s.stab(
+          12,
+          "gerade",
+          [o.breite + 2 * ls12],
+          2 * lagen,
+          `Brüstungszulage Öffnung ${nr} (${marke})`,
+          `Brüstung ${marke}`
+        );
       // seitliche Zulagen: je Seite 1 Ø12 je Lage
-      s.stab(12, "gerade", [o.hoehe + 2 * ls12], 2 * lagen, `Seitliche Zulage Öffnung ${nr}`);
+      s.stab(
+        12,
+        "gerade",
+        [o.hoehe + 2 * ls12],
+        2 * lagen,
+        `Seitliche Zulage Öffnung ${nr} (${marke})`,
+        `Laibung ${marke}`
+      );
       // Schrägstäbe an einspringenden Ecken (je Ecke, je Lage 1 Ø12, L = 1,00 m)
       const ecken =
         (reichtBisOben ? 0 : 2) + (hatBruestung ? 2 : 0); // nur echte einspringende Ecken
       if (ecken > 0)
-        s.stab(12, "schraegstab", [1.0], ecken * lagen, `Schrägstäbe Öffnung ${nr}`);
+        s.stab(
+          12,
+          "schraegstab",
+          [1.0],
+          ecken * lagen,
+          `Schrägstäbe Öffnung ${nr} (${marke})`,
+          `Diagonal ${marke}`
+        );
       if (o.breite > 2.0)
         hinweise.push(
           `⚠ Öffnung ${nr}: Sturzbreite ${o.breite.toFixed(2)} m > 2,0 m – Sturz gesondert statisch bemessen (ggf. Fertigteil-/Balkensturz).`
         );
     } else {
       // Decke: Wechselbewehrung umlaufend + Schrägstäbe
-      s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * lagen, `Wechselzulage längs, Aussparung ${nr}`);
-      s.stab(12, "gerade", [o.hoehe + 2 * ls12], 2 * lagen, `Wechselzulage quer, Aussparung ${nr}`);
-      s.stab(12, "schraegstab", [1.0], 4 * lagen, `Schrägstäbe Aussparung ${nr}`);
+      s.stab(
+        12,
+        "gerade",
+        [o.breite + 2 * ls12],
+        2 * lagen,
+        `Wechselzulage längs, Aussparung ${nr} (${marke})`,
+        `Wechsel ${marke} längs`
+      );
+      s.stab(
+        12,
+        "gerade",
+        [o.hoehe + 2 * ls12],
+        2 * lagen,
+        `Wechselzulage quer, Aussparung ${nr} (${marke})`,
+        `Wechsel ${marke} quer`
+      );
+      s.stab(
+        12,
+        "schraegstab",
+        [1.0],
+        4 * lagen,
+        `Schrägstäbe Aussparung ${nr} (${marke})`,
+        `Diagonal ${marke}`
+      );
       if (o.breite > 1.0 || o.hoehe > 1.0)
         hinweise.push(
           `⚠ Aussparung ${nr} > 1,0 m: Deckenwechsel statisch nachweisen.`
