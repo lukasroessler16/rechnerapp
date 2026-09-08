@@ -32,7 +32,7 @@ export function IconWand() {
   );
 }
 
-export function IconDecke() {
+export function IconDeckenplatte() {
   return (
     <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Decke/Boden">
       <rect x="8" y="26" width="74" height="18" fill={beton} stroke={kante} />
@@ -167,28 +167,83 @@ export function DetailSturz() {
   );
 }
 
-/* ---------- Auswahl-Kataloge (Wert, Titel, Bild) ---------- */
+/** Bodenplatte auf Sauberkeitsschicht (Erdreich schraffiert) */
+export function IconBodenplatte() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Bodenplatte">
+      <rect x="8" y="24" width="74" height="18" fill={beton} stroke={kante} />
+      <line x1="10" y1="38" x2="80" y2="38" stroke={stahl} strokeWidth="2" />
+      <line x1="10" y1="28" x2="80" y2="28" stroke={stahl} strokeWidth="1.4" />
+      {[18, 33, 48, 63].map((x) => (
+        <circle key={x} cx={x} cy="33" r="1.6" fill={stahl} />
+      ))}
+      <line x1="8" y1="44" x2="82" y2="44" stroke={kante} strokeWidth="1" />
+      {[12, 22, 32, 42, 52, 62, 72].map((x) => (
+        <line key={x} x1={x} y1="52" x2={x + 7} y2="44" stroke={kante} strokeWidth="0.8" />
+      ))}
+    </svg>
+  );
+}
 
-export const ANSCHLUSS_UNTEN = [
-  { wert: "bodenplatte", titel: "Bodenplatte", bild: <DetailBodenplatte /> },
-  { wert: "streifenfundament", titel: "Streifenfundament", bild: <DetailStreifenfundament /> },
-  { wert: "decke_unter", titel: "Decke (Wand steht auf Decke)", bild: <DetailDeckeUnter /> },
-  { wert: "frei", titel: "frei / ohne Anschluss", bild: <DetailFreierRand /> },
-] as const;
+/** Stütze: Rechteckquerschnitt mit Längsstäben und Bügeln */
+export function IconStuetze() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Stütze">
+      <rect x="34" y="6" width="22" height="58" fill={beton} stroke={kante} />
+      <line x1="39" y1="9" x2="39" y2="61" stroke={stahl} strokeWidth="2" />
+      <line x1="51" y1="9" x2="51" y2="61" stroke={stahl} strokeWidth="2" />
+      {[13, 22, 31, 40, 49, 58].map((y) => (
+        <line key={y} x1="39" y1={y} x2="51" y2={y} stroke={stahl} strokeWidth="1.4" />
+      ))}
+    </svg>
+  );
+}
 
-export const ANSCHLUSS_OBEN = [
-  { wert: "decke_ueber", titel: "Deckenanschluss oben", bild: <DetailDeckeUeber /> },
-  { wert: "wand_weiter", titel: "Wand läuft weiter (Arbeitsfuge)", bild: <DetailWandWeiter /> },
-  { wert: "frei", titel: "freier oberer Rand (Attika o. Ä.)", bild: <DetailFreierRand /> },
-] as const;
+/** Träger: liegender Balken mit Längsstäben und Bügeln */
+export function IconTraeger() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Träger">
+      <rect x="8" y="22" width="74" height="26" fill={beton} stroke={kante} />
+      <line x1="12" y1="44" x2="78" y2="44" stroke={stahl} strokeWidth="2.2" />
+      <line x1="12" y1="26" x2="78" y2="26" stroke={stahl} strokeWidth="1.6" />
+      {[16, 27, 38, 49, 60, 71].map((x) => (
+        <line key={x} x1={x} y1="25" x2={x} y2="45" stroke={stahl} strokeWidth="1.4" />
+      ))}
+      <rect x="4" y="48" width="10" height="10" fill={beton} stroke={kante} />
+      <rect x="76" y="48" width="10" height="10" fill={beton} stroke={kante} />
+    </svg>
+  );
+}
 
-export const ANSCHLUSS_SEITE = [
-  { wert: "ecke", titel: "Eckausbildung (Außen-/Innenecke)", bild: <DetailEcke /> },
-  { wert: "wandstoss", titel: "Wandstoß (T-Anschluss)", bild: <DetailWandstoss /> },
-  { wert: "frei", titel: "freies Wandende", bild: <DetailFreierRand /> },
-] as const;
+/* ---------- Zuordnung bildId → Vorschaubild ---------- */
 
-export const DECKEN_RAND = [
-  { wert: "wand_auflager", titel: "auf Wand aufgelagert", bild: <DetailAuflager /> },
-  { wert: "frei", titel: "freier Rand", bild: <DetailFreierRand /> },
-] as const;
+/**
+ * Die Bauteilmodule in lib/bauteile/ bleiben frei von React und verweisen
+ * deshalb nur über eine `bildId` auf ihr Vorschaubild. Hier wird daraus das
+ * konkrete SVG.
+ */
+export const DETAILBILDER: Record<string, () => React.ReactElement> = {
+  // Bauteil-Icons
+  icon_wand: IconWand,
+  icon_deckenplatte: IconDeckenplatte,
+  icon_bodenplatte: IconBodenplatte,
+  icon_stuetze: IconStuetze,
+  icon_traeger: IconTraeger,
+  // Anschlussdetails
+  bodenplatte: DetailBodenplatte,
+  streifenfundament: DetailStreifenfundament,
+  decke_unter: DetailDeckeUnter,
+  decke_ueber: DetailDeckeUeber,
+  wand_weiter: DetailWandWeiter,
+  freier_rand: DetailFreierRand,
+  ecke: DetailEcke,
+  wandstoss: DetailWandstoss,
+  auflager: DetailAuflager,
+  sturz: DetailSturz,
+};
+
+/** Vorschaubild zu einer bildId; fällt auf den freien Rand zurück */
+export function Detailbild({ bildId }: { bildId: string }) {
+  const Bild = DETAILBILDER[bildId] ?? DetailFreierRand;
+  return <Bild />;
+}

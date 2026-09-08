@@ -11,7 +11,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Projekt } from "@/lib/types";
-import { neuesProjekt } from "@/lib/standardwerte";
+import { bauteilModul } from "@/lib/bauteile";
+import { neuesProjekt, normalisiereProjekt } from "@/lib/standardwerte";
 import { pruefeProjekt, schrittZuMeldung } from "@/lib/validierung";
 import SkizzeSVG from "./SkizzeSVG";
 import {
@@ -25,15 +26,30 @@ import {
 } from "./steps";
 import Vorschau from "./Vorschau";
 
-const SCHRITTE = [
-  "Bauteil",
-  "Maße",
-  "Öffnungen",
-  "Anschlüsse",
-  "Parameter",
-  "Firmendaten",
-  "Ergebnis",
-];
+/**
+ * Schrittfolge. Der Öffnungsschritt entfällt bei Bauteilen ohne Öffnungen
+ * (Bodenplatte, Stütze …) – deshalb wird die Leiste je Bauteil aufgebaut
+ * und die Schritte werden über ihren Schlüssel und nicht über eine feste
+ * Nummer angesprochen.
+ */
+type SchrittSchluessel =
+  | "bauteil"
+  | "masse"
+  | "oeffnungen"
+  | "details"
+  | "parameter"
+  | "firmendaten"
+  | "ergebnis";
+
+const TITEL: Record<SchrittSchluessel, string> = {
+  bauteil: "Bauteil",
+  masse: "Maße",
+  oeffnungen: "Öffnungen",
+  details: "Anschlüsse",
+  parameter: "Parameter",
+  firmendaten: "Firmendaten",
+  ergebnis: "Ergebnis",
+};
 
 export default function Wizard() {
   const [projekt, setProjekt] = useState<Projekt>(neuesProjekt);
@@ -45,7 +61,9 @@ export default function Wizard() {
     try {
       const roh = sessionStorage.getItem("bewehrung_projekt");
       if (roh) {
-        setProjekt({ ...neuesProjekt(), ...JSON.parse(roh) });
+        // normalisieren: Projekte aus älteren Versionen können andere
+        // Maß- und Detailschlüssel haben
+        setProjekt(normalisiereProjekt(JSON.parse(roh)));
       } else {
         // Neuer Aufruf: Firmendaten und Logo aus einem früheren Durchlauf
         // übernehmen – Baumeister rechnen meist mehrere Bauteile nacheinander
@@ -83,58 +101,82 @@ export default function Wizard() {
 
   const set: Setzer = (fn) => setProjekt(fn);
 
+  const modul = bauteilModul(projekt.bauteil);
+
+  // Schrittfolge des aktuellen Bauteils
+  const schluessel: SchrittSchluessel[] = [
+    "bauteil",
+    "masse",
+    ...(modul.hatOeffnungen ? (["oeffnungen"] as SchrittSchluessel[]) : []),
+    "details",
+    "parameter",
+    "firmendaten",
+    "ergebnis",
+  ];
+
+  // Wechselt das Bauteil auf eines ohne Öffnungen, darf der Zeiger nicht
+  // hinter das Ende der (nun kürzeren) Schrittfolge zeigen.
+  const aktiv = Math.min(schritt, schluessel.length - 1);
+
   // Schritte mit blockierenden Fehlern in der Leiste rot markieren
   const fehlerSchritte = useMemo(() => {
-    const menge = new Set<number>();
+    const menge = new Set<SchrittSchluessel>();
     for (const m of pruefeProjekt(projekt))
       if (m.schwere === "fehler") menge.add(schrittZuMeldung(m));
     return menge;
   }, [projekt]);
 
-  const inhalte = [
-    <Step1Bauteil key="1" projekt={projekt} set={set} />,
-    <Step2Masse key="2" projekt={projekt} set={set} />,
-    <Step3Oeffnungen key="3" projekt={projekt} set={set} />,
-    <Step4Anschluesse key="4" projekt={projekt} set={set} />,
-    <Step5Parameter key="5" projekt={projekt} set={set} />,
-    <Step6Firmendaten key="6" projekt={projekt} set={set} />,
-    <Vorschau key="7" projekt={projekt} />,
-  ];
+  // Schrittnummer für die Überschrift: hängt davon ab, ob der
+  // Öffnungsschritt in der Folge enthalten ist
+  const nr = (k: SchrittSchluessel) => schluessel.indexOf(k) + 1;
+
+  const inhalt: Record<SchrittSchluessel, React.ReactNode> = {
+    bauteil: <Step1Bauteil projekt={projekt} set={set} nr={nr("bauteil")} />,
+    masse: <Step2Masse projekt={projekt} set={set} nr={nr("masse")} />,
+    oeffnungen: <Step3Oeffnungen projekt={projekt} set={set} nr={nr("oeffnungen")} />,
+    details: <Step4Anschluesse projekt={projekt} set={set} nr={nr("details")} />,
+    parameter: <Step5Parameter projekt={projekt} set={set} nr={nr("parameter")} />,
+    firmendaten: <Step6Firmendaten projekt={projekt} set={set} nr={nr("firmendaten")} />,
+    ergebnis: <Vorschau projekt={projekt} />,
+  };
 
   return (
     <main className="buehne">
       <section className="panel">
         <ol className="schritte">
-          {SCHRITTE.map((name, i) => (
-            <li
-              key={name}
-              className={[
-                i === schritt ? "aktiv" : i < schritt ? "erledigt" : "",
-                fehlerSchritte.has(i) ? "fehlerhaft" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={() => setSchritt(i)}
-              title={fehlerSchritte.has(i) ? "Dieser Schritt enthält Fehler" : undefined}
-            >
-              {i + 1} {name}
-              {fehlerSchritte.has(i) && " !"}
-            </li>
-          ))}
+          {schluessel.map((k, i) => {
+            const fehlerhaft = fehlerSchritte.has(k as SchrittSchluessel);
+            return (
+              <li
+                key={k}
+                className={[
+                  i === aktiv ? "aktiv" : i < aktiv ? "erledigt" : "",
+                  fehlerhaft ? "fehlerhaft" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={() => setSchritt(i)}
+                title={fehlerhaft ? "Dieser Schritt enthält Fehler" : undefined}
+              >
+                {i + 1} {TITEL[k]}
+                {fehlerhaft && " !"}
+              </li>
+            );
+          })}
         </ol>
 
-        {inhalte[schritt]}
+        {inhalt[schluessel[aktiv]]}
 
         <div className="knopfleiste">
           <button
             className="knopf"
-            onClick={() => setSchritt((s) => Math.max(0, s - 1))}
-            disabled={schritt === 0}
+            onClick={() => setSchritt(Math.max(0, aktiv - 1))}
+            disabled={aktiv === 0}
           >
             ← Zurück
           </button>
-          {schritt < SCHRITTE.length - 1 && (
-            <button className="knopf primaer" onClick={() => setSchritt((s) => s + 1)}>
+          {aktiv < schluessel.length - 1 && (
+            <button className="knopf primaer" onClick={() => setSchritt(aktiv + 1)}>
               Weiter →
             </button>
           )}

@@ -16,6 +16,15 @@ import { hatFehler, pruefeProjekt } from "@/lib/validierung";
 
 const PREIS = process.env.NEXT_PUBLIC_PREIS_EUR ?? "29";
 
+/** Klartext der Biegeformen in der Positionstabelle */
+const FORM_KURZ: Record<string, string> = {
+  gerade: "gerade",
+  winkel: "Winkel (L)",
+  buegel_u: "Steckbügel (U)",
+  buegel_rechteck: "Rechteckbügel",
+  schraegstab: "Schrägstab",
+};
+
 export default function Vorschau({ projekt }: { projekt: Projekt }) {
   const ergebnis = useMemo(() => berechneBewehrung(projekt), [projekt]);
   // Eingabefehler blockieren die Zahlung – niemand soll für ein
@@ -77,15 +86,19 @@ export default function Vorschau({ projekt }: { projekt: Projekt }) {
         </div>
         <div className="kennwert">
           <div className="kw-wert">{k.gewaehlteMatte}</div>
-          <div className="kw-name">Lagermatte ({k.asVorhanden} cm²/m)</div>
+          <div className="kw-name">
+            {k.wahlLabel} ({k.asVorhanden} {k.hauptEinheit})
+          </div>
         </div>
         <div className="kennwert">
           <div className="kw-wert">{ergebnis.positionen.length}</div>
           <div className="kw-name">Positionen</div>
         </div>
         <div className="kennwert">
-          <div className="kw-wert">{k.asMinHaupt.toLocaleString("de-AT")} cm²/m</div>
-          <div className="kw-name">As,min Haupt (je Lage)</div>
+          <div className="kw-wert">
+            {k.asMinHaupt.toLocaleString("de-AT")} {k.hauptEinheit}
+          </div>
+          <div className="kw-name">{k.hauptLabel}</div>
         </div>
         <div className="kennwert">
           <div className="kw-wert">{k.cnom} mm</div>
@@ -93,7 +106,7 @@ export default function Vorschau({ projekt }: { projekt: Projekt }) {
         </div>
         <div className="kennwert">
           <div className="kw-wert">{k.flaecheNetto.toLocaleString("de-AT")} m²</div>
-          <div className="kw-name">Bewehrungsfläche netto</div>
+          <div className="kw-name">{k.flaecheLabel}</div>
         </div>
       </div>
 
@@ -152,7 +165,7 @@ export default function Vorschau({ projekt }: { projekt: Projekt }) {
                 <tr key={p.pos}>
                   <td>{p.pos}</td>
                   <td>{p.bezeichnung}</td>
-                  <td>{p.form ?? "Matte"}</td>
+                  <td>{p.form ? FORM_KURZ[p.form] ?? p.form : "Matte"}</td>
                   <td className="zahl">{p.laenge.toFixed(2)}</td>
                   <td className="zahl">{p.stueck}</td>
                   <td className="zahl">{p.gewichtGesamt.toFixed(1)}</td>

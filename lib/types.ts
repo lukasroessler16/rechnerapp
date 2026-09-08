@@ -3,12 +3,17 @@
  *
  * Alle Längenangaben in Metern [m], sofern nicht anders angegeben.
  * Durchmesser in Millimetern [mm], Querschnitte in [cm²/m], Gewichte in [kg].
+ *
+ * Seit der Einführung des Bauteil-Registers (lib/bauteile/) sind Maße und
+ * Detailauswahlen bewusst generisch gehalten: Welche Felder es gibt, welche
+ * Grenzen gelten und wie sie heißen, bestimmt allein das jeweilige
+ * Bauteilmodul. Dadurch kommt ein neues Bauteil ohne Änderung am Kern aus.
  */
 
-/** Bauteiltyp: Wand oder Decke/Bodenplatte */
-export type Bauteil = "wand" | "decke";
+/** Bauteilkennung, z. B. "wand" – gültige Werte liefert lib/bauteile */
+export type Bauteil = string;
 
-/** Öffnung (Fenster, Tür, Aussparung) in Wand oder Decke */
+/** Öffnung (Fenster, Tür, Aussparung) in einem Bauteil mit Öffnungen */
 export interface Oeffnung {
   id: string;
   typ: "fenster" | "tuer" | "aussparung";
@@ -22,37 +27,18 @@ export interface Oeffnung {
   hoehe: number;
 }
 
-/** Grundmaße des Bauteils */
-export interface Grundmasse {
-  /** Länge (horizontal) [m] */
-  laenge: number;
-  /** Wandhöhe bzw. Deckenbreite [m] */
-  hoehe: number;
-  /** Bauteildicke [m] */
-  dicke: number;
-}
+/**
+ * Grundmaße des Bauteils, Schlüssel je Bauteil verschieden.
+ * Wand/Platten: laenge, hoehe, dicke · Stütze: breite, tiefe, hoehe
+ * Alle Werte in Metern.
+ */
+export type Masse = Record<string, number>;
 
-/** Anschlussdetail-Typen für die vier Bauteilränder */
-export type AnschlussUnten = "bodenplatte" | "streifenfundament" | "decke_unter" | "frei";
-export type AnschlussOben = "decke_ueber" | "wand_weiter" | "frei";
-export type AnschlussSeite = "ecke" | "wandstoss" | "frei";
-
-/** Anschlussdetails einer Wand (bei Decken: Auflagersituation der Ränder) */
-export interface Anschluesse {
-  unten: AnschlussUnten;
-  oben: AnschlussOben;
-  links: AnschlussSeite;
-  rechts: AnschlussSeite;
-}
-
-/** Auflagersituation eines Deckenrandes */
-export type DeckenRand = "wand_auflager" | "frei";
-export interface DeckenRaender {
-  links: DeckenRand;
-  rechts: DeckenRand;
-  oben: DeckenRand;
-  unten: DeckenRand;
-}
+/**
+ * Detailauswahlen (Anschlüsse, Auflager, Lagerung …), Schlüssel je Bauteil
+ * verschieden. Werte sind die Options-Schlüssel des jeweiligen Detailfelds.
+ */
+export type Details = Record<string, string>;
 
 /** Bautechnische Parameter (Eurocode 2 / ÖNORM B 1992-1-1) */
 export interface Parameter {
@@ -91,13 +77,29 @@ export interface Firmendaten {
 
 /** Gesamter Eingabezustand des Wizards */
 export interface Projekt {
+  /** Bauteilkennung aus dem Register, z. B. "wand" oder "stuetze" */
   bauteil: Bauteil;
-  masse: Grundmasse;
+  masse: Masse;
   oeffnungen: Oeffnung[];
-  anschluesse: Anschluesse;
-  deckenRaender: DeckenRaender;
+  details: Details;
   parameter: Parameter;
   firmendaten: Firmendaten;
+}
+
+/* ------------------------------------------------------------------ */
+/* Prüfmeldungen                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Meldung der Plausibilitätsprüfung.
+ * Liegt hier (und nicht in lib/validierung.ts), damit Bauteilmodule eigene
+ * Prüfungen liefern können, ohne einen Import-Ring zu erzeugen.
+ */
+export interface Pruefmeldung {
+  /** Feldschlüssel, z. B. "laenge" oder "oef:<id>:breite" */
+  feld: string;
+  schwere: "fehler" | "warnung";
+  text: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -109,6 +111,7 @@ export type Biegeform =
   | "gerade" // gerader Stab
   | "winkel" // L-Form (ein Abbug 90°)
   | "buegel_u" // U-Form / Steckbügel (zwei Abbüge 90°)
+  | "buegel_rechteck" // geschlossener Rechteckbügel (Stütze, Träger, Fundament)
   | "schraegstab"; // gerader Stab, diagonal eingebaut (45°)
 
 /** Eine Position der Stück-/Biegeliste */
@@ -148,22 +151,33 @@ export interface Position {
 
 /** Nachvollziehbare Kennwerte der Berechnung */
 export interface Kennwerte {
-  /** Bruttoquerschnitt Ac [cm²/m] */
+  /** Bruttoquerschnitt Ac [cm²/m] bzw. [cm²] (siehe hauptEinheit) */
   ac: number;
-  /** statische Nutzhöhe d [cm] (Decke) */
+  /** statische Nutzhöhe d [cm] (Platten, Träger) */
   nutzhoehe?: number;
-  /** erforderliche Mindestbewehrung vertikal/Haupt [cm²/m] je Seite */
+  /** erforderliche Mindestbewehrung vertikal/Haupt/längs */
   asMinHaupt: number;
-  /** erforderliche Mindestbewehrung horizontal/Quer [cm²/m] je Seite */
+  /** erforderliche Mindestbewehrung horizontal/Quer */
   asMinQuer: number;
-  /** gewählte Matte */
+  /**
+   * Bezeichnung der gewählten Hauptbewehrung – bei Flächenbauteilen die
+   * Lagermatte ("Q257A"), bei Stäben die Stabwahl ("8 Ø16").
+   */
   gewaehlteMatte: string;
-  /** vorhandene Bewehrung der Matte [cm²/m] */
+  /** vorhandene Hauptbewehrung [cm²/m] bzw. [cm²] */
   asVorhanden: number;
   /** Nennmaß Betondeckung c_nom [mm] */
   cnom: number;
-  /** Bewehrungsfläche netto (abzügl. Öffnungen) [m²], je Lage */
+  /** maßgebende Bewehrungsfläche netto [m²] bzw. Betonvolumen-Bezugsgröße */
   flaecheNetto: number;
+  /** Beschriftung der Hauptkennzahl, z. B. "As,min je Lage" */
+  hauptLabel: string;
+  /** Einheit der Hauptkennzahl, z. B. "cm²/m" */
+  hauptEinheit: string;
+  /** Beschriftung der gewählten Bewehrung, z. B. "Lagermatte" */
+  wahlLabel: string;
+  /** Beschriftung von flaecheNetto, z. B. "Bewehrungsfläche netto" */
+  flaecheLabel: string;
 }
 
 /** Gesamtergebnis der Bewehrungsermittlung */

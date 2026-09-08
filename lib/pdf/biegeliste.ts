@@ -23,6 +23,7 @@ const FORM_NAME: Record<string, string> = {
   gerade: "gerade",
   winkel: "Winkel (L)",
   buegel_u: "Steckbügel (U)",
+  buegel_rechteck: "Rechteckbügel",
   schraegstab: "Schrägstab",
 };
 

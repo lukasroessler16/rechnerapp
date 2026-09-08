@@ -7,18 +7,21 @@
  *  – "warnung": bautechnisch heikel, aber rechenbar (z. B. sehr schmale
  *               Restpfeiler). Wird angezeigt, blockiert aber nicht.
  *
+ * Die Grenzen der Grundmaße kommen aus der Felddefinition des jeweiligen
+ * Bauteilmoduls; bauteilspezifische Zusatzprüfungen liefert dessen
+ * `pruefe()`. Öffnungen werden generisch geprüft: Bauteile mit Öffnungen
+ * spannen sie definitionsgemäß in der Ebene `laenge` (x) × `hoehe` (y) auf.
+ *
  * Die Prüfung läuft rein im Browser und ergänzt die serverseitige
  * Validierung in `lib/payload.ts` – ersetzt sie aber nicht.
  */
 
-import { Projekt, Oeffnung } from "./types";
+import { Oeffnung, Projekt, Pruefmeldung } from "./types";
+import { bauteilModul } from "./bauteile";
+import { oeffnungsMarke } from "./bauteile/helfer";
 
-export interface Pruefmeldung {
-  /** Feldschlüssel, z. B. "laenge" oder "oef:<id>:breite" */
-  feld: string;
-  schwere: "fehler" | "warnung";
-  text: string;
-}
+export type { Pruefmeldung } from "./types";
+export { oeffnungsMarke } from "./bauteile/helfer";
 
 /* ------------------------------------------------------------------ */
 /* Bautechnische Schwellenwerte                                        */
@@ -37,13 +40,6 @@ const VERANKERUNG = 0.6;
  */
 const MIN_PFEILER = 0.25;
 
-/** Zulässige Bereiche (identisch zur serverseitigen Prüfung) */
-const GRENZEN = {
-  laenge: { min: 0.5, max: 100 },
-  hoehe: { min: 0.5, max: 100 },
-  dicke: { min: 0.08, max: 1.0 },
-};
-
 /* ------------------------------------------------------------------ */
 /* Hilfen                                                              */
 /* ------------------------------------------------------------------ */
@@ -52,11 +48,6 @@ const GRENZEN = {
 const cmText = (m: number) => `${Math.round(m * 100)} cm`;
 /** Meter mit zwei Nachkommastellen, deutsche Schreibweise */
 const mText = (m: number) => `${m.toFixed(2).replace(".", ",")} m`;
-
-/** Planmarke einer Öffnung, identisch zu Skizze, Bauplan und Stückliste */
-export function oeffnungsMarke(o: Oeffnung, index: number): string {
-  return (o.typ === "fenster" ? "F" : o.typ === "tuer" ? "T" : "A") + (index + 1);
-}
 
 /** Erste Fehlermeldung zu einem Feld (für die Anzeige am Eingabefeld) */
 export function fehlerZu(meldungen: Pruefmeldung[], feld: string): string | undefined {
@@ -74,9 +65,8 @@ export function hatFehler(meldungen: Pruefmeldung[]): boolean {
 
 export function pruefeProjekt(projekt: Projekt): Pruefmeldung[] {
   const meldungen: Pruefmeldung[] = [];
-  const { masse, oeffnungen, bauteil } = projekt;
-  const wand = bauteil === "wand";
-  const nameQuer = wand ? "Höhe" : "Breite";
+  const modul = bauteilModul(projekt.bauteil);
+  const { masse, oeffnungen } = projekt;
   // kleine Toleranz gegen Rundungsartefakte bei Kommazahlen
   const eps = 1e-6;
 
@@ -85,130 +75,128 @@ export function pruefeProjekt(projekt: Projekt): Pruefmeldung[] {
   const warnung = (feld: string, text: string) =>
     meldungen.push({ feld, schwere: "warnung", text });
 
-  /* ---------- Grundmaße ---------- */
-  if (!isFinite(masse.laenge) || masse.laenge <= 0)
-    fehler("laenge", "Die Länge muss größer als 0 sein.");
-  else if (masse.laenge < GRENZEN.laenge.min)
-    fehler("laenge", `Die Länge muss mindestens ${mText(GRENZEN.laenge.min)} betragen.`);
-  else if (masse.laenge > GRENZEN.laenge.max)
-    fehler("laenge", `Die Länge darf höchstens ${GRENZEN.laenge.max} m betragen.`);
+  /* ---------- Grundmaße: Grenzen aus der Modulbeschreibung ---------- */
+  for (const f of modul.masse) {
+    const wert = masse[f.schluessel];
+    const grenzText = (v: number) =>
+      f.einheit === "cm" ? `${Math.round(v * 100)} cm` : mText(v);
 
-  if (!isFinite(masse.hoehe) || masse.hoehe <= 0)
-    fehler("hoehe", `Die ${nameQuer} muss größer als 0 sein.`);
-  else if (masse.hoehe < GRENZEN.hoehe.min)
-    fehler("hoehe", `Die ${nameQuer} muss mindestens ${mText(GRENZEN.hoehe.min)} betragen.`);
-  else if (masse.hoehe > GRENZEN.hoehe.max)
-    fehler("hoehe", `Die ${nameQuer} darf höchstens ${GRENZEN.hoehe.max} m betragen.`);
-
-  if (!isFinite(masse.dicke) || masse.dicke <= 0)
-    fehler("dicke", "Die Dicke muss größer als 0 sein.");
-  else if (masse.dicke < GRENZEN.dicke.min || masse.dicke > GRENZEN.dicke.max)
-    fehler(
-      "dicke",
-      `Die Dicke muss zwischen ${Math.round(GRENZEN.dicke.min * 100)} und ${Math.round(
-        GRENZEN.dicke.max * 100
-      )} cm liegen.`
-    );
-
-  // Ohne brauchbare Grundmaße sind Öffnungsprüfungen sinnlos
-  const masseOk =
-    masse.laenge > 0 && masse.hoehe > 0 && isFinite(masse.laenge) && isFinite(masse.hoehe);
+    if (!isFinite(wert) || wert <= 0) {
+      fehler(f.schluessel, `${f.label} muss größer als 0 sein.`);
+      continue;
+    }
+    if (wert < f.min)
+      fehler(f.schluessel, `${f.label} muss mindestens ${grenzText(f.min)} betragen.`);
+    else if (wert > f.max)
+      fehler(f.schluessel, `${f.label} darf höchstens ${grenzText(f.max)} betragen.`);
+  }
 
   /* ---------- Öffnungen ---------- */
-  oeffnungen.forEach((o, i) => {
-    const marke = oeffnungsMarke(o, i);
-    const s = `oef:${o.id}`;
+  // Nur Bauteile mit Öffnungen; die Öffnungsebene ist laenge × hoehe.
+  if (modul.hatOeffnungen) {
+    const laenge = masse.laenge;
+    const hoehe = masse.hoehe;
+    const masseOk = isFinite(laenge) && isFinite(hoehe) && laenge > 0 && hoehe > 0;
 
-    // Eigenmaße
-    if (!isFinite(o.breite) || o.breite <= 0)
-      fehler(`${s}:breite`, "Die Breite muss größer als 0 sein.");
-    if (!isFinite(o.hoehe) || o.hoehe <= 0)
-      fehler(`${s}:hoehe`, "Die Höhe muss größer als 0 sein.");
-    if (!isFinite(o.x) || o.x < 0)
-      fehler(`${s}:x`, "Die Position x darf nicht negativ sein.");
-    if (!isFinite(o.y) || o.y < 0)
-      fehler(`${s}:y`, "Die Position y darf nicht negativ sein.");
+    oeffnungen.forEach((o: Oeffnung, i: number) => {
+      const marke = oeffnungsMarke(o, i);
+      const s = `oef:${o.id}`;
 
-    if (!masseOk || o.breite <= 0 || o.hoehe <= 0 || o.x < 0 || o.y < 0) return;
+      // Eigenmaße
+      if (!isFinite(o.breite) || o.breite <= 0)
+        fehler(`${s}:breite`, "Die Breite muss größer als 0 sein.");
+      if (!isFinite(o.hoehe) || o.hoehe <= 0)
+        fehler(`${s}:hoehe`, "Die Höhe muss größer als 0 sein.");
+      if (!isFinite(o.x) || o.x < 0)
+        fehler(`${s}:x`, "Die Position x darf nicht negativ sein.");
+      if (!isFinite(o.y) || o.y < 0)
+        fehler(`${s}:y`, "Die Position y darf nicht negativ sein.");
 
-    /* --- liegt die Öffnung im Bauteil? --- */
-    const ueberRechts = o.x + o.breite - masse.laenge;
-    const ueberOben = o.y + o.hoehe - masse.hoehe;
+      if (!masseOk || o.breite <= 0 || o.hoehe <= 0 || o.x < 0 || o.y < 0) return;
 
-    if (ueberRechts > eps)
-      fehler(
-        `${s}:breite`,
-        `${marke} ragt um ${cmText(ueberRechts)} über den rechten Rand hinaus. ` +
-          `Position x + Breite darf höchstens ${mText(masse.laenge)} ergeben.`
-      );
-    if (ueberOben > eps)
-      fehler(
-        `${s}:hoehe`,
-        `${marke} ragt um ${cmText(ueberOben)} über die Oberkante hinaus. ` +
-          `Position y + Höhe darf höchstens ${mText(masse.hoehe)} ergeben.`
-      );
+      /* --- liegt die Öffnung im Bauteil? --- */
+      const ueberRechts = o.x + o.breite - laenge;
+      const ueberOben = o.y + o.hoehe - hoehe;
 
-    if (ueberRechts > eps || ueberOben > eps) return;
-
-    /* --- Rand- und Pfeilerabstände --- */
-    const abstaende: [string, number][] = [
-      ["links", o.x],
-      ["rechts", masse.laenge - (o.x + o.breite)],
-      ["unten", o.y],
-      ["oben", masse.hoehe - (o.y + o.hoehe)],
-    ];
-
-    for (const [seite, d] of abstaende) {
-      // d = 0 ist zulässig (Tür bis Unterkante, Öffnung bis Oberkante)
-      if (d <= eps) continue;
-      if (d < MIN_PFEILER)
-        warnung(
-          s,
-          `${marke}: nur ${cmText(d)} Restquerschnitt ${seite}. Ein Wandstreifen ` +
-            `unter ${cmText(MIN_PFEILER)} ist als Stütze zu bemessen – bitte statisch prüfen.`
+      if (ueberRechts > eps)
+        fehler(
+          `${s}:breite`,
+          `${marke} ragt um ${cmText(ueberRechts)} über den rechten Rand hinaus. ` +
+            `Position x + Breite darf höchstens ${mText(laenge)} ergeben.`
         );
-      else if (d < VERANKERUNG)
-        warnung(
-          s,
-          `${marke}: Randabstand ${seite} beträgt ${cmText(d)} und liegt unter der ` +
-            `Verankerungslänge von ${cmText(VERANKERUNG)}. Die Zulagen müssen abgewinkelt ` +
-            `oder mit Haken verankert werden.`
+      if (ueberOben > eps)
+        fehler(
+          `${s}:hoehe`,
+          `${marke} ragt um ${cmText(ueberOben)} über die Oberkante hinaus. ` +
+            `Position y + Höhe darf höchstens ${mText(hoehe)} ergeben.`
         );
-    }
 
-    /* --- Überschneidung mit anderen Öffnungen --- */
-    oeffnungen.forEach((p, j) => {
-      if (j <= i) return;
-      if (p.breite <= 0 || p.hoehe <= 0) return;
-      const ueberlapptX = o.x < p.x + p.breite - eps && p.x < o.x + o.breite - eps;
-      const ueberlapptY = o.y < p.y + p.hoehe - eps && p.y < o.y + o.hoehe - eps;
-      const marke2 = oeffnungsMarke(p, j);
+      if (ueberRechts > eps || ueberOben > eps) return;
 
-      if (ueberlapptX && ueberlapptY) {
-        fehler(s, `${marke} und ${marke2} überschneiden einander.`);
-        return;
-      }
-      // Schmaler Pfeiler zwischen zwei nebeneinanderliegenden Öffnungen
-      if (ueberlapptY) {
-        const spalt = Math.max(o.x, p.x) - Math.min(o.x + o.breite, p.x + p.breite);
-        if (spalt > eps && spalt < MIN_PFEILER)
+      /* --- Rand- und Pfeilerabstände --- */
+      const abstaende: [string, number][] = [
+        ["links", o.x],
+        ["rechts", laenge - (o.x + o.breite)],
+        ["unten", o.y],
+        ["oben", hoehe - (o.y + o.hoehe)],
+      ];
+
+      for (const [seite, d] of abstaende) {
+        // d = 0 ist zulässig (Tür bis Unterkante, Öffnung bis Oberkante)
+        if (d <= eps) continue;
+        if (d < MIN_PFEILER)
           warnung(
             s,
-            `Zwischen ${marke} und ${marke2} bleiben nur ${cmText(spalt)} Wand stehen – ` +
-              `dieser Pfeiler ist als Stütze zu bemessen.`
+            `${marke}: nur ${cmText(d)} Restquerschnitt ${seite}. Ein Bauteilstreifen ` +
+              `unter ${cmText(MIN_PFEILER)} ist als Stütze zu bemessen – bitte statisch prüfen.`
+          );
+        else if (d < VERANKERUNG)
+          warnung(
+            s,
+            `${marke}: Randabstand ${seite} beträgt ${cmText(d)} und liegt unter der ` +
+              `Verankerungslänge von ${cmText(VERANKERUNG)}. Die Zulagen müssen abgewinkelt ` +
+              `oder mit Haken verankert werden.`
           );
       }
+
+      /* --- Überschneidung mit anderen Öffnungen --- */
+      oeffnungen.forEach((p, j) => {
+        if (j <= i) return;
+        if (p.breite <= 0 || p.hoehe <= 0) return;
+        const ueberlapptX = o.x < p.x + p.breite - eps && p.x < o.x + o.breite - eps;
+        const ueberlapptY = o.y < p.y + p.hoehe - eps && p.y < o.y + o.hoehe - eps;
+        const marke2 = oeffnungsMarke(p, j);
+
+        if (ueberlapptX && ueberlapptY) {
+          fehler(s, `${marke} und ${marke2} überschneiden einander.`);
+          return;
+        }
+        // Schmaler Pfeiler zwischen zwei nebeneinanderliegenden Öffnungen
+        if (ueberlapptY) {
+          const spalt = Math.max(o.x, p.x) - Math.min(o.x + o.breite, p.x + p.breite);
+          if (spalt > eps && spalt < MIN_PFEILER)
+            warnung(
+              s,
+              `Zwischen ${marke} und ${marke2} bleiben nur ${cmText(spalt)} Bauteil stehen – ` +
+                `dieser Pfeiler ist als Stütze zu bemessen.`
+            );
+        }
+      });
     });
-  });
+  }
+
+  /* ---------- bauteilspezifische Zusatzprüfungen ---------- */
+  if (modul.pruefe) meldungen.push(...modul.pruefe(projekt));
 
   return meldungen;
 }
 
 /**
- * Ordnet eine Meldung dem Wizard-Schritt zu (0-basiert), damit fehlerhafte
- * Schritte in der Schrittleiste markiert werden können.
+ * Ordnet eine Meldung einem Wizard-Schritt zu, damit fehlerhafte Schritte in
+ * der Schrittleiste markiert werden können. Es wird ein Schlüssel und keine
+ * Nummer geliefert, weil die Schrittfolge je Bauteil unterschiedlich lang ist
+ * (Bauteile ohne Öffnungen überspringen den Öffnungsschritt).
  */
-export function schrittZuMeldung(m: Pruefmeldung): number {
-  if (m.feld.startsWith("oef:")) return 2; // Schritt 3 · Öffnungen
-  return 1; // Schritt 2 · Grundmaße
+export function schrittZuMeldung(m: Pruefmeldung): "masse" | "oeffnungen" {
+  return m.feld.startsWith("oef:") ? "oeffnungen" : "masse";
 }

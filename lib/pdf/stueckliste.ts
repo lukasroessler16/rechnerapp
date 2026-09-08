@@ -6,6 +6,7 @@
 
 import { PDFDocument } from "pdf-lib";
 import { Projekt, Ergebnis } from "../types";
+import { bauteilModul } from "../bauteile";
 import {
   Zeichner,
   Fonts,
@@ -58,9 +59,7 @@ export async function erzeugeStueckliste(
     z = new Zeichner(seite, fonts);
     await listenKopf(doc, z, "STÜCKLISTE BAUSTAHL", projekt.firmendaten, seiteNr);
     z.text(
-      `${projekt.bauteil === "wand" ? "Wand" : "Decke"} ${de(projekt.masse.laenge)} × ${de(
-        projekt.masse.hoehe
-      )} × ${de(projekt.masse.dicke)} m · ${projekt.parameter.stahlguete} · ${projekt.parameter.betonklasse}`,
+      `${bauteilModul(projekt.bauteil).masseText(projekt)} · ${projekt.parameter.stahlguete} · ${projekt.parameter.betonklasse}`,
       15,
       258,
       8,

@@ -16,17 +16,11 @@ export const MUSTERPROJEKT: Projekt = {
     { id: "m1", typ: "fenster", x: 1.5, y: 0.9, breite: 1.5, hoehe: 1.4 },
     { id: "m2", typ: "tuer", x: 5.0, y: 0, breite: 1.0, hoehe: 2.1 },
   ],
-  anschluesse: {
+  details: {
     unten: "bodenplatte",
     oben: "decke_ueber",
     links: "ecke",
     rechts: "ecke",
-  },
-  deckenRaender: {
-    links: "wand_auflager",
-    rechts: "wand_auflager",
-    oben: "wand_auflager",
-    unten: "wand_auflager",
   },
   parameter: {
     betonklasse: "C25/30",

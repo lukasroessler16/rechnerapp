@@ -1,22 +1,25 @@
 /**
- * Standard-Startwerte für ein neues Projekt (clientseitig).
+ * Standard-Startwerte für ein neues Projekt (clientseitig) und die
+ * Wiederherstellung eines gespeicherten Zustands.
  */
 import { Projekt } from "./types";
 import { cnomAusExposition } from "./normdaten";
+import {
+  bauteilModul,
+  istBauteil,
+  standardDetails,
+  standardMasse,
+  STANDARD_BAUTEIL,
+} from "./bauteile";
 
 export function neuesProjekt(): Projekt {
   const heute = new Date().toISOString().slice(0, 10);
+  const modul = bauteilModul(STANDARD_BAUTEIL);
   return {
-    bauteil: "wand",
-    masse: { laenge: 5.0, hoehe: 2.75, dicke: 0.25 },
+    bauteil: modul.id,
+    masse: standardMasse(modul),
     oeffnungen: [],
-    anschluesse: { unten: "bodenplatte", oben: "decke_ueber", links: "ecke", rechts: "ecke" },
-    deckenRaender: {
-      links: "wand_auflager",
-      rechts: "wand_auflager",
-      oben: "wand_auflager",
-      unten: "wand_auflager",
-    },
+    details: standardDetails(modul),
     parameter: {
       betonklasse: "C25/30",
       expositionsklasse: "XC2",
@@ -33,5 +36,39 @@ export function neuesProjekt(): Projekt {
       adresse: "",
       datum: heute,
     },
+  };
+}
+
+/**
+ * Bringt einen gespeicherten (oder aus einer älteren Version stammenden)
+ * Zustand auf die aktuelle Form: unbekanntes Bauteil → Standardbauteil,
+ * fehlende Maß- oder Detailschlüssel → Standardwerte des Bauteils,
+ * unbekannte Schlüssel werden verworfen.
+ */
+export function normalisiereProjekt(roh: unknown): Projekt {
+  const basis = neuesProjekt();
+  const p = (roh ?? {}) as Partial<Projekt>;
+  const bauteil = istBauteil(p.bauteil) ? (p.bauteil as string) : basis.bauteil;
+  const modul = bauteilModul(bauteil);
+
+  const masse: Record<string, number> = {};
+  for (const f of modul.masse) {
+    const wert = Number(p.masse?.[f.schluessel]);
+    masse[f.schluessel] = isFinite(wert) && wert > 0 ? wert : f.standard;
+  }
+
+  const details: Record<string, string> = {};
+  for (const f of modul.details) {
+    const wert = String(p.details?.[f.schluessel] ?? "");
+    details[f.schluessel] = f.optionen.some((o) => o.wert === wert) ? wert : f.standard;
+  }
+
+  return {
+    bauteil,
+    masse,
+    details,
+    oeffnungen: modul.hatOeffnungen && Array.isArray(p.oeffnungen) ? p.oeffnungen : [],
+    parameter: { ...basis.parameter, ...(p.parameter ?? {}) },
+    firmendaten: { ...basis.firmendaten, ...(p.firmendaten ?? {}) },
   };
 }

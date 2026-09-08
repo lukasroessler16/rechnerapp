@@ -32,8 +32,22 @@ export const de = (v: number, stellen = 2) =>
     maximumFractionDigits: stellen,
   });
 
-/** PDF-sichere Textersetzung (WinAnsi kennt kein ⚠ u. Ä.) */
-export const sicher = (s: string) => s.replace(/⚠/g, "!").replace(/–/g, "-");
+/**
+ * PDF-sichere Textersetzung. Die eingebetteten Standardschriften können nur
+ * WinAnsi darstellen; alles darüber hinaus (⚠, Pfeile, typografische
+ * Sonderzeichen) würde pdf-lib mit einer Ausnahme quittieren. Deshalb erst
+ * die häufigen Zeichen sinnvoll ersetzen und danach alles Übrige, was
+ * WinAnsi nicht kennt, auf "?" abbilden – ein Dokument darf nie an einem
+ * einzelnen Zeichen scheitern.
+ */
+const WINANSI_ZUSATZ = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•—˜™š›œžŸ";
+export const sicher = (s: string) =>
+  s
+    .replace(/⚠/g, "!")
+    .replace(/[→⇒]/g, "->")
+    .replace(/[←⇐]/g, "<-")
+    .replace(/[–—]/g, "-")
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, (c) => (WINANSI_ZUSATZ.includes(c) ? c : "?"));
 
 export interface Fonts {
   normal: PDFFont;
@@ -54,13 +68,28 @@ export class Zeichner {
     public fonts: Fonts
   ) {}
 
-  linie(x1: number, y1: number, x2: number, y2: number, dicke = 0.3, farbe: RGB = SCHWARZ) {
+  linie(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    dicke = 0.3,
+    farbe: RGB = SCHWARZ,
+    /** Strichmuster in mm, z. B. [1.6, 1.2] für gestrichelt */
+    strich?: number[]
+  ) {
     this.seite.drawLine({
       start: { x: mm(x1), y: mm(y1) },
       end: { x: mm(x2), y: mm(y2) },
       thickness: dicke,
       color: farbe,
+      dashArray: strich?.map(mm),
     });
+  }
+
+  /** gefüllter Kreis, z. B. Bewehrungsstab im Querschnitt */
+  kreis(x: number, y: number, r: number, farbe: RGB = SCHWARZ) {
+    this.seite.drawCircle({ x: mm(x), y: mm(y), size: mm(r), color: farbe });
   }
 
   rechteck(
@@ -79,6 +108,12 @@ export class Zeichner {
       borderColor: opts.rand ?? (opts.fuellung ? undefined : SCHWARZ),
       borderWidth: opts.rand || !opts.fuellung ? (opts.dicke ?? 0.3) : undefined,
     });
+  }
+
+  /** Breite eines Textes in mm (zum Ausrichten und Beschneiden) */
+  textBreite(t: string, groesse = 9, fett = false) {
+    const font = fett ? this.fonts.fett : this.fonts.normal;
+    return (font.widthOfTextAtSize(sicher(t), groesse) * 25.4) / 72;
   }
 
   text(
@@ -271,6 +306,18 @@ export function formSkizze(z: Zeichner, p: Position, x: number, y: number, b: nu
       z.linie(x + 5, y + 4, x + b - 5, y + 4, 0.9, ORANGE);
       z.text(de(s[0]), x + 3, cy, 6, { drehung: 90 });
       z.text(de(s[1] ?? 0), cx + 2, y + 5.5, 6, { ausrichtung: "mitte" });
+      break;
+    }
+    case "buegel_rechteck": {
+      // geschlossener Bügel: Rechteck mit angedeutetem Haken in einer Ecke
+      const rb = b - 12;
+      const rh = h - 7;
+      const rx = x + 6;
+      const ry = y + 3.5;
+      z.rechteck(rx, ry, rb, rh, { dicke: 0.9, rand: ORANGE });
+      z.linie(rx + 1.5, ry + rh - 1.5, rx + 4.5, ry + rh - 4.5, 0.9, ORANGE); // Haken
+      z.text(de(s[0]), rx + rb / 2, ry + rh / 2 - 1, 6, { ausrichtung: "mitte" });
+      z.text(de(s[1] ?? 0), rx + rb + 2.5, ry + rh / 2 - 1, 6, { drehung: 90 });
       break;
     }
     case "buegel_u": {

@@ -1,13 +1,23 @@
 "use client";
 
 /**
- * Eingabeschritte 1–6 des Wizards.
- * Jeder Schritt erhält den Projekt-Zustand und eine Update-Funktion
- * `set`, die eine Producer-Funktion (alt → neu) entgegennimmt.
+ * Eingabeschritte des Wizards.
+ *
+ * Die Schritte 1–4 sind vollständig registergesteuert: Welche Maßfelder und
+ * welche Detailauswahlen es gibt, sagt das Bauteilmodul (lib/bauteile/).
+ * Ein neues Bauteil erscheint dadurch automatisch in der Bauteilwahl und
+ * bringt seine eigenen Eingabefelder mit – hier ist dafür nichts zu ändern.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Projekt, Oeffnung, Parameter } from "@/lib/types";
+import { Oeffnung, Parameter, Projekt } from "@/lib/types";
+import {
+  BAUTEILE,
+  bauteilModul,
+  standardDetails,
+  standardMasse,
+} from "@/lib/bauteile";
+import { Massfeld } from "@/lib/bauteile/typen";
 import {
   BETONKLASSEN,
   EXPOSITIONSKLASSEN,
@@ -15,26 +25,15 @@ import {
   cnomAusExposition,
 } from "@/lib/normdaten";
 import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
-import {
-  Pruefmeldung,
-  fehlerZu,
-  oeffnungsMarke,
-  pruefeProjekt,
-} from "@/lib/validierung";
-import {
-  IconWand,
-  IconDecke,
-  ANSCHLUSS_UNTEN,
-  ANSCHLUSS_OBEN,
-  ANSCHLUSS_SEITE,
-  DECKEN_RAND,
-  DetailSturz,
-} from "./DetailBilder";
+import { Pruefmeldung, fehlerZu, oeffnungsMarke, pruefeProjekt } from "@/lib/validierung";
+import { Detailbild } from "./DetailBilder";
 
 export type Setzer = (fn: (p: Projekt) => Projekt) => void;
 interface StepProps {
   projekt: Projekt;
   set: Setzer;
+  /** Nummer in der (bauteilabhängigen) Schrittfolge, 1-basiert */
+  nr: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -121,34 +120,79 @@ function ZahlFeld({
   );
 }
 
+/** Ein Maßfeld des Bauteils – rechnet zwischen Speicher- (m) und Anzeigeeinheit um */
+function MassFeld({
+  feld,
+  projekt,
+  set,
+  fehler,
+}: {
+  feld: Massfeld;
+  projekt: Projekt;
+  set: Setzer;
+  fehler?: string;
+}) {
+  const inCm = feld.einheit === "cm";
+  const faktor = inCm ? 100 : 1;
+  const roh = projekt.masse[feld.schluessel] ?? feld.standard;
+  return (
+    <ZahlFeld
+      label={feld.label}
+      einheit={feld.einheit}
+      wert={inCm ? Math.round(roh * 100) : roh}
+      min={feld.min * faktor}
+      max={feld.max * faktor}
+      schritt={feld.schritt ?? (inCm ? 1 : 0.01)}
+      hinweis={feld.hinweis}
+      fehler={fehler}
+      onChange={(v) =>
+        set((p) => ({ ...p, masse: { ...p.masse, [feld.schluessel]: v / faktor } }))
+      }
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Schritt 1: Bauteilwahl                                              */
 /* ------------------------------------------------------------------ */
 
-export function Step1Bauteil({ projekt, set }: StepProps) {
+export function Step1Bauteil({ projekt, set, nr }: StepProps) {
+  /**
+   * Beim Wechsel werden Maße und Details auf die Standardwerte des neuen
+   * Bauteils gesetzt – die Feldschlüssel unterscheiden sich je Bauteil
+   * (eine Stütze hat kein "laenge"), alte Werte wären also sinnlos.
+   */
+  const waehle = (id: string) =>
+    set((p) => {
+      if (p.bauteil === id) return p;
+      const modul = bauteilModul(id);
+      return {
+        ...p,
+        bauteil: id,
+        masse: standardMasse(modul),
+        details: standardDetails(modul),
+        oeffnungen: modul.hatOeffnungen ? p.oeffnungen : [],
+      };
+    });
+
   return (
     <>
-      <h2 className="schritt-titel">1 · Bauteil wählen</h2>
+      <h2 className="schritt-titel">{nr} · Bauteil wählen</h2>
       <p className="schritt-hilfe">
         Für welches Bauteil soll die Bewehrung ermittelt werden?
       </p>
       <div className="karten">
-        <div
-          className={`karte ${projekt.bauteil === "wand" ? "gewaehlt" : ""}`}
-          onClick={() => set((p) => ({ ...p, bauteil: "wand" }))}
-        >
-          <IconWand />
-          <div className="karte-titel">Wand</div>
-          <div className="karte-text">Stahlbetonwand mit Fenster-/Türöffnungen</div>
-        </div>
-        <div
-          className={`karte ${projekt.bauteil === "decke" ? "gewaehlt" : ""}`}
-          onClick={() => set((p) => ({ ...p, bauteil: "decke" }))}
-        >
-          <IconDecke />
-          <div className="karte-titel">Decke / Bodenplatte</div>
-          <div className="karte-text">Flachdecke oder Bodenplatte mit Aussparungen</div>
-        </div>
+        {BAUTEILE.map((b) => (
+          <div
+            key={b.id}
+            className={`karte ${projekt.bauteil === b.id ? "gewaehlt" : ""}`}
+            onClick={() => waehle(b.id)}
+          >
+            <Detailbild bildId={b.bildId} />
+            <div className="karte-titel">{b.name}</div>
+            <div className="karte-text">{b.beschreibung}</div>
+          </div>
+        ))}
       </div>
     </>
   );
@@ -158,46 +202,33 @@ export function Step1Bauteil({ projekt, set }: StepProps) {
 /* Schritt 2: Grundmaße                                                */
 /* ------------------------------------------------------------------ */
 
-export function Step2Masse({ projekt, set }: StepProps) {
-  const wand = projekt.bauteil === "wand";
+export function Step2Masse({ projekt, set, nr }: StepProps) {
+  const modul = bauteilModul(projekt.bauteil);
   const meldungen = useMemo(() => pruefeProjekt(projekt), [projekt]);
   return (
     <>
-      <h2 className="schritt-titel">2 · Grundmaße</h2>
+      <h2 className="schritt-titel">{nr} · Grundmaße</h2>
       <p className="schritt-hilfe">
-        Alle Maße in Metern. Die Skizze rechts aktualisiert sich live.
+        Maße für {modul.name}. Die Skizze rechts aktualisiert sich live.
       </p>
       <div className="reihe3">
-        <ZahlFeld
-          label="Länge"
-          einheit="m"
-          wert={projekt.masse.laenge}
-          min={0.5}
-          max={100}
-          onChange={(v) => set((p) => ({ ...p, masse: { ...p.masse, laenge: v } }))}
-          fehler={fehlerZu(meldungen, "laenge")}
-        />
-        <ZahlFeld
-          label={wand ? "Höhe" : "Breite"}
-          einheit="m"
-          wert={projekt.masse.hoehe}
-          min={0.5}
-          max={100}
-          onChange={(v) => set((p) => ({ ...p, masse: { ...p.masse, hoehe: v } }))}
-          fehler={fehlerZu(meldungen, "hoehe")}
-        />
-        <ZahlFeld
-          label="Dicke"
-          einheit="cm"
-          wert={Math.round(projekt.masse.dicke * 100)}
-          min={8}
-          max={100}
-          schritt={1}
-          onChange={(v) => set((p) => ({ ...p, masse: { ...p.masse, dicke: v / 100 } }))}
-          hinweis={wand ? "üblich: 20–30 cm" : "üblich: 18–25 cm"}
-          fehler={fehlerZu(meldungen, "dicke")}
-        />
+        {modul.masse.map((f) => (
+          <MassFeld
+            key={f.schluessel}
+            feld={f}
+            projekt={projekt}
+            set={set}
+            fehler={fehlerZu(meldungen, f.schluessel)}
+          />
+        ))}
       </div>
+      {meldungen
+        .filter((m) => m.schwere === "warnung" && !m.feld.startsWith("oef:"))
+        .map((m, i) => (
+          <div className="warnbox" key={i}>
+            {m.text}
+          </div>
+        ))}
     </>
   );
 }
@@ -206,26 +237,30 @@ export function Step2Masse({ projekt, set }: StepProps) {
 /* Schritt 3: Öffnungen                                                */
 /* ------------------------------------------------------------------ */
 
-export function Step3Oeffnungen({ projekt, set }: StepProps) {
-  const wand = projekt.bauteil === "wand";
+export function Step3Oeffnungen({ projekt, set, nr }: StepProps) {
+  const modul = bauteilModul(projekt.bauteil);
+  const typen = modul.oeffnungsTypen ?? ["aussparung"];
   const vorschlaege = oeffnungsDetails(projekt);
   const meldungen: Pruefmeldung[] = useMemo(() => pruefeProjekt(projekt), [projekt]);
 
   const neu = () =>
-    set((p) => ({
-      ...p,
-      oeffnungen: [
-        ...p.oeffnungen,
-        {
-          id: String(Date.now()),
-          typ: wand ? "fenster" : "aussparung",
-          x: 1,
-          y: wand ? 0.9 : 1,
-          breite: wand ? 1.2 : 0.6,
-          hoehe: wand ? 1.4 : 0.6,
-        } as Oeffnung,
-      ],
-    }));
+    set((p) => {
+      const fenster = typen.includes("fenster");
+      return {
+        ...p,
+        oeffnungen: [
+          ...p.oeffnungen,
+          {
+            id: String(Date.now()),
+            typ: fenster ? "fenster" : typen[0],
+            x: 1,
+            y: fenster ? 0.9 : 1,
+            breite: fenster ? 1.2 : 0.6,
+            hoehe: fenster ? 1.4 : 0.6,
+          } as Oeffnung,
+        ],
+      };
+    });
 
   const aendere = (id: string, teil: Partial<Oeffnung>) =>
     set((p) => ({
@@ -238,7 +273,7 @@ export function Step3Oeffnungen({ projekt, set }: StepProps) {
 
   return (
     <>
-      <h2 className="schritt-titel">3 · Öffnungen</h2>
+      <h2 className="schritt-titel">{nr} · Öffnungen</h2>
       <p className="schritt-hilfe">
         Position jeweils als Abstand der linken unteren Öffnungsecke vom linken bzw.
         unteren Bauteilrand. Erforderliche Verstärkungen (Sturz, Schrägstäbe …) werden
@@ -257,21 +292,25 @@ export function Step3Oeffnungen({ projekt, set }: StepProps) {
                 entfernen
               </button>
             </div>
-            <div className="feld">
-              <label>Typ</label>
-              <select
-                value={o.typ}
-                onChange={(e) => {
-                  const typ = e.target.value as Oeffnung["typ"];
-                  // Tür: sinnvollerweise auf Bauteilunterkante setzen
-                  aendere(o.id, typ === "tuer" ? { typ, y: 0 } : { typ });
-                }}
-              >
-                {wand && <option value="fenster">Fenster</option>}
-                {wand && <option value="tuer">Tür</option>}
-                <option value="aussparung">Aussparung</option>
-              </select>
-            </div>
+            {typen.length > 1 && (
+              <div className="feld">
+                <label>Typ</label>
+                <select
+                  value={o.typ}
+                  onChange={(e) => {
+                    const typ = e.target.value as Oeffnung["typ"];
+                    // Tür: sinnvollerweise auf Bauteilunterkante setzen
+                    aendere(o.id, typ === "tuer" ? { typ, y: 0 } : { typ });
+                  }}
+                >
+                  {typen.includes("fenster") && <option value="fenster">Fenster</option>}
+                  {typen.includes("tuer") && <option value="tuer">Tür</option>}
+                  {typen.includes("aussparung") && (
+                    <option value="aussparung">Aussparung</option>
+                  )}
+                </select>
+              </div>
+            )}
             <div className="reihe">
               <ZahlFeld label="Position x" einheit="m" wert={o.x} min={0} max={100}
                 onChange={(v2) => aendere(o.id, { x: v2 })}
@@ -305,7 +344,7 @@ export function Step3Oeffnungen({ projekt, set }: StepProps) {
               <div className="detail-vorschlag">
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <div style={{ width: 64 }}>
-                    <DetailSturz />
+                    <Detailbild bildId="sturz" />
                   </div>
                   <div>
                     <strong>Automatisch berücksichtigte Details:</strong>
@@ -329,27 +368,29 @@ export function Step3Oeffnungen({ projekt, set }: StepProps) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Schritt 4: Anschlussdetails                                         */
+/* Schritt 4: Anschluss-/Detailauswahl                                 */
 /* ------------------------------------------------------------------ */
 
-function DetailWahl<T extends string>({
+function DetailWahl({
   label,
   wert,
   optionen,
   onChange,
 }: {
   label: string;
-  wert: T;
-  optionen: readonly { wert: string; titel: string; bild: React.ReactNode }[];
-  onChange: (v: T) => void;
+  wert: string;
+  optionen: { wert: string; titel: string; bildId: string }[];
+  onChange: (v: string) => void;
 }) {
   const aktiv = optionen.find((o) => o.wert === wert) ?? optionen[0];
   return (
     <div className="detail-wahl">
-      <div className="bild">{aktiv.bild}</div>
+      <div className="bild">
+        <Detailbild bildId={aktiv.bildId} />
+      </div>
       <div className="wahl feld" style={{ marginBottom: 0 }}>
         <label>{label}</label>
-        <select value={wert} onChange={(e) => onChange(e.target.value as T)}>
+        <select value={wert} onChange={(e) => onChange(e.target.value)}>
           {optionen.map((o) => (
             <option key={o.wert} value={o.wert}>
               {o.titel}
@@ -361,43 +402,20 @@ function DetailWahl<T extends string>({
   );
 }
 
-export function Step4Anschluesse({ projekt, set }: StepProps) {
-  if (projekt.bauteil === "wand") {
-    const a = projekt.anschluesse;
-    return (
-      <>
-        <h2 className="schritt-titel">4 · Anschlussdetails</h2>
-        <p className="schritt-hilfe">
-          Wie schließt die Wand an angrenzende Bauteile an? Das Vorschaubild zeigt das
-          gewählte Detail (Beton grau, Bewehrung orange).
-        </p>
-        <DetailWahl label="Anschluss unten" wert={a.unten} optionen={ANSCHLUSS_UNTEN}
-          onChange={(v) => set((p) => ({ ...p, anschluesse: { ...p.anschluesse, unten: v } }))} />
-        <DetailWahl label="Anschluss oben" wert={a.oben} optionen={ANSCHLUSS_OBEN}
-          onChange={(v) => set((p) => ({ ...p, anschluesse: { ...p.anschluesse, oben: v } }))} />
-        <DetailWahl label="Anschluss links" wert={a.links} optionen={ANSCHLUSS_SEITE}
-          onChange={(v) => set((p) => ({ ...p, anschluesse: { ...p.anschluesse, links: v } }))} />
-        <DetailWahl label="Anschluss rechts" wert={a.rechts} optionen={ANSCHLUSS_SEITE}
-          onChange={(v) => set((p) => ({ ...p, anschluesse: { ...p.anschluesse, rechts: v } }))} />
-      </>
-    );
-  }
-  const r = projekt.deckenRaender;
+export function Step4Anschluesse({ projekt, set, nr }: StepProps) {
+  const modul = bauteilModul(projekt.bauteil);
   return (
     <>
-      <h2 className="schritt-titel">4 · Auflagersituation der Ränder</h2>
-      <p className="schritt-hilfe">
-        Für jeden Deckenrand: aufgelagert (Wand) oder frei? Freie Ränder erhalten
-        Steckbügel als Randeinfassung.
-      </p>
-      {(["links", "rechts", "oben", "unten"] as const).map((seite) => (
+      <h2 className="schritt-titel">{nr} · {modul.detailTitel}</h2>
+      <p className="schritt-hilfe">{modul.detailHilfe}</p>
+      {modul.details.map((f) => (
         <DetailWahl
-          key={seite}
-          label={`Rand ${seite}`}
-          wert={r[seite]}
-          optionen={DECKEN_RAND}
+          key={f.schluessel}
+          label={f.label}
+          wert={projekt.details[f.schluessel] ?? f.standard}
+          optionen={f.optionen}
           onChange={(v) =>
-            set((p) => ({ ...p, deckenRaender: { ...p.deckenRaender, [seite]: v } }))
+            set((p) => ({ ...p, details: { ...p.details, [f.schluessel]: v } }))
           }
         />
       ))}
@@ -409,8 +427,11 @@ export function Step4Anschluesse({ projekt, set }: StepProps) {
 /* Schritt 5: Bautechnische Parameter                                  */
 /* ------------------------------------------------------------------ */
 
-export function Step5Parameter({ projekt, set }: StepProps) {
+export function Step5Parameter({ projekt, set, nr }: StepProps) {
   const par = projekt.parameter;
+  const modul = bauteilModul(projekt.bauteil);
+  /** Bauteile ohne Flächenbewehrung brauchen weder Matte, Lagen noch Raster */
+  const mitMatten = modul.flaechenbewehrt;
 
   /** Kurzschreibweise: einzelne Parameter ändern */
   const setPar = (teil: Partial<Parameter>) =>
@@ -430,7 +451,7 @@ export function Step5Parameter({ projekt, set }: StepProps) {
 
   return (
     <>
-      <h2 className="schritt-titel">5 · Bautechnische Parameter</h2>
+      <h2 className="schritt-titel">{nr} · Bautechnische Parameter</h2>
       <p className="schritt-hilfe">
         Vorgaben nach EC2/ÖNORM B 1992-1-1. Alle Felder sind sinnvoll vorbelegt –
         Sie müssen nur ändern, was von Ihrem Projekt abweicht.
@@ -523,37 +544,42 @@ export function Step5Parameter({ projekt, set }: StepProps) {
             </select>
           </div>
 
-          <div className="feld">
-            <label>Bewehrungslagen</label>
-            <select
-              value={par.lagen}
-              onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
-            >
-              <option value={1}>einlagig (mittig bzw. unten)</option>
-              <option value={2}>zweilagig (beidseitig)</option>
-            </select>
-            <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
-          </div>
+          {mitMatten && (
+            <div className="feld">
+              <label>Bewehrungslagen</label>
+              <select
+                value={par.lagen}
+                onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
+              >
+                <option value={1}>einlagig (mittig bzw. unten)</option>
+                <option value={2}>zweilagig (beidseitig)</option>
+              </select>
+              <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
+            </div>
+          )}
         </div>
 
         <div className="reihe">
-          <div className="feld">
-            <label>Lagermatte</label>
-            <select value={par.matte} onChange={(e) => setPar({ matte: e.target.value })}>
-              <option value="auto">automatisch (wirtschaftlichste)</option>
-              {LAGERMATTEN.map((m) => (
-                <option key={m.name} value={m.name}>
-                  {m.name} ({m.as} cm²/m)
-                </option>
-              ))}
-            </select>
-            <div className="hinweis">
-              {par.matte === "auto"
-                ? "kleinste ausreichende Matte"
-                : "feste Vorgabe – Deckung wird geprüft"}
+          {mitMatten && (
+            <div className="feld">
+              <label>Lagermatte</label>
+              <select value={par.matte} onChange={(e) => setPar({ matte: e.target.value })}>
+                <option value="auto">automatisch (wirtschaftlichste)</option>
+                {LAGERMATTEN.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {m.name} ({m.as} cm²/m)
+                  </option>
+                ))}
+              </select>
+              <div className="hinweis">
+                {par.matte === "auto"
+                  ? "kleinste ausreichende Matte"
+                  : "feste Vorgabe – Deckung wird geprüft"}
+              </div>
             </div>
-          </div>
+          )}
 
+          {mitMatten && (
           <div className="feld">
             <label>Raster Anschlussbewehrung</label>
             <select
@@ -565,7 +591,15 @@ export function Step5Parameter({ projekt, set }: StepProps) {
               <option value={250}>Ø10 / 25 cm (Standard)</option>
             </select>
           </div>
+          )}
         </div>
+
+        {!mitMatten && (
+          <div className="hinweis">
+            Längsbewehrung und Bügel der Stütze ergeben sich aus Querschnitt und
+            Betondeckung – sie werden automatisch nach EC2 9.5 gewählt.
+          </div>
+        )}
       </section>
 
       {/* ---------------- Live-Ergebnis dieser Auswahl ---------------- */}
@@ -574,13 +608,16 @@ export function Step5Parameter({ projekt, set }: StepProps) {
       </h3>
       <div className="kennwert-gitter">
         <div className="kennwert">
-          <div className="kw-wert">{kennwerte.asMinHaupt.toLocaleString("de-AT")} cm²/m</div>
-          <div className="kw-name">erforderlich (As,min je Lage)</div>
+          <div className="kw-wert">
+            {kennwerte.asMinHaupt.toLocaleString("de-AT")} {kennwerte.hauptEinheit}
+          </div>
+          <div className="kw-name">{kennwerte.hauptLabel}</div>
         </div>
         <div className="kennwert">
           <div className="kw-wert">{kennwerte.gewaehlteMatte}</div>
           <div className="kw-name">
-            vorhanden: {kennwerte.asVorhanden.toLocaleString("de-AT")} cm²/m
+            {kennwerte.wahlLabel} · vorhanden:{" "}
+            {kennwerte.asVorhanden.toLocaleString("de-AT")} {kennwerte.hauptEinheit}
           </div>
         </div>
         <div className="kennwert">
@@ -590,8 +627,8 @@ export function Step5Parameter({ projekt, set }: StepProps) {
       </div>
       {kennwerte.asVorhanden < kennwerte.asMinHaupt && (
         <div className="warnbox">
-          Die gewählte Matte deckt die Mindestbewehrung nicht ab. Bitte eine stärkere
-          Matte wählen oder auf „automatisch" stellen.
+          Die gewählte Bewehrung deckt die Mindestbewehrung nicht ab. Bitte eine
+          stärkere Matte wählen oder auf „automatisch“ stellen.
         </div>
       )}
     </>
@@ -602,7 +639,7 @@ export function Step5Parameter({ projekt, set }: StepProps) {
 /* Schritt 6: Firmendaten & Logo                                       */
 /* ------------------------------------------------------------------ */
 
-export function Step6Firmendaten({ projekt, set }: StepProps) {
+export function Step6Firmendaten({ projekt, set, nr }: StepProps) {
   const fd = projekt.firmendaten;
   const text = (feld: keyof typeof fd) => (e: React.ChangeEvent<HTMLInputElement>) =>
     set((p) => ({ ...p, firmendaten: { ...p.firmendaten, [feld]: e.target.value } }));
@@ -625,7 +662,7 @@ export function Step6Firmendaten({ projekt, set }: StepProps) {
 
   return (
     <>
-      <h2 className="schritt-titel">6 · Projekt- &amp; Firmendaten</h2>
+      <h2 className="schritt-titel">{nr} · Projekt- &amp; Firmendaten</h2>
       <p className="schritt-hilfe">
         Diese Angaben erscheinen im Schriftkopf aller Dokumente. Das Logo bleibt auf
         Ihrem Gerät und wird nur für die PDF-Erstellung übertragen.
