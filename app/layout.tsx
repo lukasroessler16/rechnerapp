@@ -25,7 +25,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Konstruktionsregeln. Es ersetzt keine statische Berechnung. Alle Ergebnisse sind
           vor der Ausführung von einer zur Tragwerksplanung befugten Person (Statiker:in,
           Ziviltechniker:in) zu prüfen und freizugeben. Die Nutzung erfolgt auf eigene
-          Verantwortung. · <Link href="/rechtliches">Rechtliches &amp; Impressum</Link>
+          Verantwortung.
+          <br />
+          <span className="fuss-links">
+            <Link href="/impressum">Impressum</Link>
+            <Link href="/datenschutz">Datenschutz</Link>
+            <Link href="/rechtliches">Nutzungsbedingungen &amp; Haftung</Link>
+          </span>
         </footer>
       </body>
     </html>

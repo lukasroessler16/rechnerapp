@@ -30,7 +30,10 @@ function ErfolgInhalt() {
     setLaedt(typ);
     setFehler(null);
     try {
-      // Projekt (für Demo) bzw. Firmendaten/Logo (immer) aus dem Browser
+      // Projekt (für Demo) bzw. Firmendaten/Logo (immer) aus dem Browser.
+      // Reihenfolge: laufende Sitzung zuerst, sonst der dauerhafte Speicher –
+      // so erscheint das Logo auch, wenn der Kunde später über den
+      // E-Mail-Link zurückkommt und die Sitzung längst beendet ist.
       let projekt: unknown = null;
       let firmendaten: unknown = null;
       try {
@@ -38,6 +41,10 @@ function ErfolgInhalt() {
         if (roh) {
           projekt = JSON.parse(roh);
           firmendaten = (projekt as { firmendaten?: unknown }).firmendaten;
+        }
+        if (!firmendaten) {
+          const gesichert = localStorage.getItem("bewehrung_firmendaten");
+          if (gesichert) firmendaten = JSON.parse(gesichert);
         }
       } catch {
         /* ohne gespeicherte Daten weiter – Dokumente kommen dann ohne Logo */
@@ -90,7 +97,7 @@ function ErfolgInhalt() {
       <p>
         {demo
           ? "Stripe ist noch nicht konfiguriert – die Dokumente werden ohne Zahlung erzeugt (nur lokal zum Testen)."
-          : "Ihre Dokumente sind freigeschaltet. Die Downloads bleiben verfügbar, solange Sie diesen Browser-Tab geöffnet halten (Link ggf. als Lesezeichen sichern)."}
+          : "Ihre Dokumente sind freigeschaltet. Denselben Link haben wir Ihnen zusätzlich per E-Mail geschickt – er bleibt dauerhaft gültig."}
       </p>
       <div className="download-reihe">
         {DOKUMENTE.map((d) => (

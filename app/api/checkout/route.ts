@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripeClient } from "@/lib/stripe";
 import { validiereProjekt, projektZuMetadata } from "@/lib/payload";
+import { basisUrl } from "@/lib/basis";
 
 
 export const runtime = "nodejs";
@@ -23,8 +24,21 @@ const PREIS_CENT = parseInt(process.env.PREIS_CENT ?? "2900", 10);
 
 export async function POST(req: NextRequest) {
   try {
-    const { projekt: roh } = await req.json();
+    const { projekt: roh, verzichtBestaetigt } = await req.json();
     const projekt = validiereProjekt(roh);
+
+    // Rücktrittsverzicht (§ 18 Abs. 1 Z 11 FAGG): Ohne ausdrückliche
+    // Zustimmung darf die Zahlung nicht starten. Serverseitig geprüft, damit
+    // die Bestätigung nicht durch Manipulation der Oberfläche umgehbar ist.
+    if (verzichtBestaetigt !== true) {
+      return NextResponse.json(
+        {
+          fehler:
+            "Bitte bestätigen Sie die sofortige Bereitstellung der Dokumente, um fortzufahren.",
+        },
+        { status: 400 }
+      );
+    }
 
     const schluessel = process.env.STRIPE_SECRET_KEY;
     if (!schluessel) {
@@ -34,11 +48,7 @@ export async function POST(req: NextRequest) {
 
     const stripe = stripeClient(schluessel);
 
-    // Basis-URL: bevorzugt aus Env, sonst aus dem Request ableiten.
-    // Fehlt das Schema (https://), wird es automatisch ergänzt – Stripe
-    // lehnt success_url/cancel_url ohne Schema sonst ab.
-    const basisRoh = process.env.NEXT_PUBLIC_BASIS_URL || req.nextUrl.origin;
-    const basis = /^https?:\/\//.test(basisRoh) ? basisRoh : `https://${basisRoh}`;
+    const basis = basisUrl(req);
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -57,7 +67,12 @@ export async function POST(req: NextRequest) {
           },
         },
       ],
-      metadata: projektZuMetadata(projekt),
+      metadata: {
+        ...projektZuMetadata(projekt),
+        // Nachweis der Zustimmung zum Rücktrittsverzicht, dauerhaft bei
+        // der Zahlung dokumentiert
+        widerrufsverzicht: new Date().toISOString(),
+      },
       success_url: `${basis}/erfolg?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${basis}/?abbruch=1`,
       // Rechnungs-/Steuerdaten bewusst minimal: keine Registrierung nötig

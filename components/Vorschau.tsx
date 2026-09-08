@@ -12,25 +12,37 @@
 import { useMemo, useState } from "react";
 import { Projekt } from "@/lib/types";
 import { berechneBewehrung } from "@/lib/bewehrung";
+import { hatFehler, pruefeProjekt } from "@/lib/validierung";
 
 const PREIS = process.env.NEXT_PUBLIC_PREIS_EUR ?? "29";
 
 export default function Vorschau({ projekt }: { projekt: Projekt }) {
   const ergebnis = useMemo(() => berechneBewehrung(projekt), [projekt]);
+  // Eingabefehler blockieren die Zahlung – niemand soll für ein
+  // geometrisch unmögliches Bauteil bezahlen.
+  const pruefung = useMemo(() => pruefeProjekt(projekt), [projekt]);
+  const eingabeFehler = pruefung.filter((m) => m.schwere === "fehler");
+  const eingabeWarnungen = pruefung.filter((m) => m.schwere === "warnung");
+  const gesperrt = hatFehler(pruefung);
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  /** Zustimmung zur sofortigen Bereitstellung (Rücktrittsverzicht, FAGG) */
+  const [verzicht, setVerzicht] = useState(false);
 
   /** Checkout starten: Projekt an den Server, weiter zu Stripe */
   const bezahlen = async () => {
     setLaedt(true);
     setFehler(null);
     try {
-      // Logo + Firmendaten für die Erfolgsseite sichern (Stripe leitet zurück)
+      // Projekt für die Erfolgsseite sichern (Stripe leitet zurück).
+      // Zusätzlich dauerhaft (localStorage): so erscheint das Logo auch dann
+      // wieder, wenn der Kunde später über den E-Mail-Link zurückkommt.
       sessionStorage.setItem("bewehrung_projekt", JSON.stringify(projekt));
+      localStorage.setItem("bewehrung_firmendaten", JSON.stringify(projekt.firmendaten));
       const antwort = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projekt }),
+        body: JSON.stringify({ projekt, verzichtBestaetigt: verzicht }),
       });
       const daten = await antwort.json();
       if (!antwort.ok) throw new Error(daten.fehler ?? "Checkout fehlgeschlagen.");
@@ -85,6 +97,31 @@ export default function Vorschau({ projekt }: { projekt: Projekt }) {
         </div>
       </div>
 
+      {eingabeFehler.length > 0 && (
+        <div className="fehlerbox">
+          <strong>Eingaben korrigieren – die Zahlung ist bis dahin gesperrt:</strong>
+          <ul>
+            {eingabeFehler.map((m, i) => (
+              <li key={i}>{m.text}</li>
+            ))}
+          </ul>
+          <div style={{ marginTop: 6, fontSize: 12.5 }}>
+            Die betroffenen Schritte sind in der Leiste oben mit „!" markiert.
+          </div>
+        </div>
+      )}
+
+      {eingabeWarnungen.length > 0 && (
+        <div className="warnbox">
+          <strong>Bautechnisch heikel:</strong>
+          <ul>
+            {eingabeWarnungen.map((m, i) => (
+              <li key={i}>{m.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {warnungen.length > 0 && (
         <div className="warnbox">
           <strong>Statisch zu prüfen:</strong>
@@ -132,11 +169,39 @@ export default function Vorschau({ projekt }: { projekt: Projekt }) {
             <br />
             werden nach der Einmalzahlung freigeschaltet.
           </div>
-          <button className="knopf primaer" onClick={bezahlen} disabled={laedt}>
+          {/* Rücktrittsverzicht: gesetzlich erforderliche, aktive Zustimmung
+              vor dem Kauf digitaler Inhalte, die sofort bereitgestellt werden */}
+          <label className="zustimmung">
+            <input
+              type="checkbox"
+              checked={verzicht}
+              onChange={(e) => setVerzicht(e.target.checked)}
+            />
+            <span>
+              Ich verlange ausdrücklich, dass die Dokumente sofort nach der Zahlung
+              bereitgestellt werden, und nehme zur Kenntnis, dass ich damit mein
+              Rücktrittsrecht verliere.
+            </span>
+          </label>
+
+          <button
+            className="knopf primaer"
+            onClick={bezahlen}
+            disabled={laedt || !verzicht || gesperrt}
+            title={
+              gesperrt
+                ? "Bitte zuerst die Eingabefehler beheben"
+                : !verzicht
+                  ? "Bitte zuerst die Zustimmung oben bestätigen"
+                  : undefined
+            }
+          >
             {laedt ? "Weiterleitung zu Stripe …" : `Jetzt freischalten – ${PREIS} € (einmalig)`}
           </button>
           <div style={{ fontSize: 12, color: "#5a6472" }}>
             Sichere Zahlung über Stripe · Karte, Apple&nbsp;Pay, EPS · keine Registrierung
+            <br />
+            Die Dokumente erhalten Sie zusätzlich per E-Mail.
           </div>
           {fehler && <div className="warnbox">{fehler}</div>}
         </div>

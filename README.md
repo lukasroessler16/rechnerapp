@@ -134,10 +134,65 @@ Bezahlseite (keine PCI-Pflichten), unterstützt Karten, Apple/Google Pay sowie
 7. **Livegang:** Testmodus ausschalten, Live-Schlüssel (`sk_live_…`) erzeugen
    und in Vercel als `STRIPE_SECRET_KEY` hinterlegen (siehe unten).
 
-Ein Stripe-Webhook ist **nicht erforderlich**: Der Server prüft beim
-Dokumentabruf direkt bei Stripe, ob die Session bezahlt ist
-(`payment_status === "paid"`). Das ist bei diesem zustandslosen Ansatz die
-einfachste sichere Lösung.
+Für die **Freischaltung** der Dokumente ist kein Webhook nötig: Der Server
+prüft beim Abruf direkt bei Stripe, ob die Session bezahlt ist
+(`payment_status === "paid"`). Der Webhook im nächsten Abschnitt dient
+ausschließlich dem E-Mail-Versand.
+
+## 4b. E-Mail-Versand einrichten (Webhook + Resend)
+
+**Warum?** Schließt ein Kunde nach der Zahlung den Browser-Tab, bevor er die
+PDFs geladen hat, findet er sonst nicht mehr zurück. Der Webhook verschickt
+deshalb direkt nach der Zahlung eine E-Mail mit dem dauerhaften Download-Link –
+er greift auch dann, wenn der Kunde den Tab sofort schließt.
+
+Ohne die folgenden Variablen funktioniert die App unverändert, nur eben ohne
+E-Mail. Du kannst das also später nachziehen.
+
+**Schritt 1 – Resend-Konto (E-Mail-Versand, gratis bis 3.000 Mails/Monat):**
+
+1. Konto anlegen auf <https://resend.com>.
+2. Unter **API Keys** einen Schlüssel erzeugen (`re_…`) und als
+   `RESEND_API_KEY` eintragen.
+3. Als `MAIL_ABSENDER` zum Testen `onboarding@resend.dev` verwenden.
+   Für den Echtbetrieb unter **Domains** die eigene Domain verifizieren
+   (drei DNS-Einträge) und dann z. B.
+   `Bewehrungsrechner <dokumente@ihre-domain.at>` eintragen.
+
+**Schritt 2 – Webhook in Stripe anlegen:**
+
+1. Stripe-Dashboard → **Entwickler → Webhooks → Endpunkt hinzufügen**.
+2. Endpunkt-URL: `https://DEINE-DOMAIN/api/stripe-webhook`
+3. Als Ereignis **`checkout.session.completed`** auswählen (nur dieses).
+4. Nach dem Anlegen das **Signaturgeheimnis** (`whsec_…`) kopieren und als
+   `STRIPE_WEBHOOK_SECRET` hinterlegen.
+5. In Vercel unter Settings → Environment Variables eintragen und **neu
+   deployen** (auch `RESEND_API_KEY`, `MAIL_ABSENDER` und
+   `NEXT_PUBLIC_BASIS_URL` mit der echten Domain).
+
+**Schritt 3 – testen:** Einen Testkauf mit `4242 4242 4242 4242` durchführen.
+Im Stripe-Dashboard zeigt der Webhook-Eintrag den Aufruf mit Status 200; die
+E-Mail sollte innerhalb weniger Sekunden ankommen. Bei Problemen stehen die
+Details in den Vercel-Logs (Deployment → Functions → `/api/stripe-webhook`).
+
+**Lokal testen** (optional, mit der Stripe-CLI):
+
+```bash
+brew install stripe/stripe-cli/stripe
+stripe login
+stripe listen --forward-to localhost:3000/api/stripe-webhook
+```
+
+Die CLI zeigt ein eigenes `whsec_…` an, das lokal in `.env.local` gehört.
+
+## 4c. Rücktrittsverzicht
+
+Vor dem Bezahlknopf muss der Kunde aktiv bestätigen, dass die Dokumente sofort
+bereitgestellt werden und er damit sein Rücktrittsrecht verliert (§ 18 Abs. 1
+Z 11 FAGG). Der Knopf bleibt bis dahin gesperrt, und der Server weist einen
+Checkout ohne diese Bestätigung ab – die Zustimmung ist also nicht durch
+Manipulation der Oberfläche umgehbar. Der Zeitpunkt der Zustimmung wird als
+Metadatum `widerrufsverzicht` dauerhaft bei der Zahlung in Stripe protokolliert.
 
 ## 5. Deployment auf Vercel
 
@@ -200,6 +255,7 @@ app/
   rechtliches/page.tsx  Haftung + Impressums-Platzhalter
   api/checkout/route.ts Stripe-Checkout-Session (Projekt → Metadata)
   api/dokumente/route.ts Zahlungsprüfung + PDF-Erzeugung
+  api/stripe-webhook/route.ts  Zahlungseingang → E-Mail mit Download-Link
 components/
   Wizard.tsx, steps.tsx, Vorschau.tsx, SkizzeSVG.tsx, DetailBilder.tsx
 lib/
@@ -207,6 +263,9 @@ lib/
   normdaten.ts          Betonklassen, Expositionsklassen, Matten, Stahl (EC2/ÖNORM)
   bewehrung.ts          Berechnungskern (Mindestbewehrung, Positionen, Gewichte)
   payload.ts            Komprimierung/Validierung für Stripe-Metadata
+  basis.ts              öffentliche Basis-URL (Schema-sicher)
+  email.ts              E-Mail-Versand über Resend (REST)
+  stripe.ts             Stripe-Client (fetch-HTTP-Client für Vercel)
   standardwerte.ts      Startwerte
   pdf/                  helpers, bauplan, biegeliste, stueckliste
 scripts/

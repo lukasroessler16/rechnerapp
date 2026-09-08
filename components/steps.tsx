@@ -6,7 +6,7 @@
  * `set`, die eine Producer-Funktion (alt → neu) entgegennimmt.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Projekt, Oeffnung, Parameter } from "@/lib/types";
 import {
   BETONKLASSEN,
@@ -15,6 +15,12 @@ import {
   cnomAusExposition,
 } from "@/lib/normdaten";
 import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
+import {
+  Pruefmeldung,
+  fehlerZu,
+  oeffnungsMarke,
+  pruefeProjekt,
+} from "@/lib/validierung";
 import {
   IconWand,
   IconDecke,
@@ -44,6 +50,7 @@ function ZahlFeld({
   schritt = 0.01,
   onChange,
   hinweis,
+  fehler,
 }: {
   label: string;
   einheit: string;
@@ -53,7 +60,42 @@ function ZahlFeld({
   schritt?: number;
   onChange: (v: number) => void;
   hinweis?: string;
+  /** Meldung aus der Plausibilitätsprüfung */
+  fehler?: string;
 }) {
+  /**
+   * Eigener Textzustand: Nur so lässt sich das Feld mit der Rücktaste ganz
+   * leeren. Würde direkt der Zahlenwert angezeigt, schriebe React beim
+   * ersten ungültigen Zwischenstand sofort den alten Wert zurück.
+   */
+  const [text, setText] = useState(() => String(wert));
+  const letzterWert = useRef(wert);
+
+  // Änderungen von außen übernehmen (Vorbelegung, Typwechsel, Zurücksetzen)
+  useEffect(() => {
+    if (wert !== letzterWert.current) {
+      letzterWert.current = wert;
+      setText(String(wert));
+    }
+  }, [wert]);
+
+  const aendern = (roh: string) => {
+    setText(roh);
+    const v = parseFloat(roh.replace(",", "."));
+    if (isFinite(v)) {
+      letzterWert.current = v;
+      onChange(v);
+    }
+  };
+
+  // Leeres Feld beim Verlassen auf den letzten gültigen Wert zurücksetzen
+  const verlassen = () => {
+    if (!isFinite(parseFloat(text.replace(",", ".")))) setText(String(wert));
+  };
+
+  const leer = text.trim() === "";
+  const meldung = leer ? "Bitte einen Wert eintragen." : fehler;
+
   return (
     <div className="feld">
       <label>
@@ -62,16 +104,19 @@ function ZahlFeld({
       <input
         type="number"
         inputMode="decimal"
-        value={wert}
+        className={meldung ? "ungueltig" : undefined}
+        value={text}
         min={min}
         max={max}
         step={schritt}
-        onChange={(e) => {
-          const v = parseFloat(e.target.value);
-          if (isFinite(v)) onChange(v);
-        }}
+        onChange={(e) => aendern(e.target.value)}
+        onBlur={verlassen}
       />
-      {hinweis && <div className="hinweis">{hinweis}</div>}
+      {meldung ? (
+        <div className="feldfehler">{meldung}</div>
+      ) : hinweis ? (
+        <div className="hinweis">{hinweis}</div>
+      ) : null}
     </div>
   );
 }
@@ -115,6 +160,7 @@ export function Step1Bauteil({ projekt, set }: StepProps) {
 
 export function Step2Masse({ projekt, set }: StepProps) {
   const wand = projekt.bauteil === "wand";
+  const meldungen = useMemo(() => pruefeProjekt(projekt), [projekt]);
   return (
     <>
       <h2 className="schritt-titel">2 · Grundmaße</h2>
@@ -129,6 +175,7 @@ export function Step2Masse({ projekt, set }: StepProps) {
           min={0.5}
           max={100}
           onChange={(v) => set((p) => ({ ...p, masse: { ...p.masse, laenge: v } }))}
+          fehler={fehlerZu(meldungen, "laenge")}
         />
         <ZahlFeld
           label={wand ? "Höhe" : "Breite"}
@@ -137,6 +184,7 @@ export function Step2Masse({ projekt, set }: StepProps) {
           min={0.5}
           max={100}
           onChange={(v) => set((p) => ({ ...p, masse: { ...p.masse, hoehe: v } }))}
+          fehler={fehlerZu(meldungen, "hoehe")}
         />
         <ZahlFeld
           label="Dicke"
@@ -147,6 +195,7 @@ export function Step2Masse({ projekt, set }: StepProps) {
           schritt={1}
           onChange={(v) => set((p) => ({ ...p, masse: { ...p.masse, dicke: v / 100 } }))}
           hinweis={wand ? "üblich: 20–30 cm" : "üblich: 18–25 cm"}
+          fehler={fehlerZu(meldungen, "dicke")}
         />
       </div>
     </>
@@ -160,6 +209,7 @@ export function Step2Masse({ projekt, set }: StepProps) {
 export function Step3Oeffnungen({ projekt, set }: StepProps) {
   const wand = projekt.bauteil === "wand";
   const vorschlaege = oeffnungsDetails(projekt);
+  const meldungen: Pruefmeldung[] = useMemo(() => pruefeProjekt(projekt), [projekt]);
 
   const neu = () =>
     set((p) => ({
@@ -200,7 +250,8 @@ export function Step3Oeffnungen({ projekt, set }: StepProps) {
           <div className="oeffnung-block" key={o.id}>
             <div className="oeffnung-kopfzeile">
               <strong>
-                Öffnung {i + 1} ({o.typ === "fenster" ? "Fenster" : o.typ === "tuer" ? "Tür" : "Aussparung"})
+                {oeffnungsMarke(o, i)} ·{" "}
+                {o.typ === "fenster" ? "Fenster" : o.typ === "tuer" ? "Tür" : "Aussparung"}
               </strong>
               <button className="knopf klein" onClick={() => loesche(o.id)}>
                 entfernen
@@ -223,16 +274,33 @@ export function Step3Oeffnungen({ projekt, set }: StepProps) {
             </div>
             <div className="reihe">
               <ZahlFeld label="Position x" einheit="m" wert={o.x} min={0} max={100}
-                onChange={(v2) => aendere(o.id, { x: v2 })} />
+                onChange={(v2) => aendere(o.id, { x: v2 })}
+                fehler={fehlerZu(meldungen, `oef:${o.id}:x`)} />
               <ZahlFeld label="Position y" einheit="m" wert={o.y} min={0} max={100}
-                onChange={(v2) => aendere(o.id, { y: v2 })} />
+                onChange={(v2) => aendere(o.id, { y: v2 })}
+                fehler={fehlerZu(meldungen, `oef:${o.id}:y`)} />
             </div>
             <div className="reihe">
               <ZahlFeld label="Breite" einheit="m" wert={o.breite} min={0.1} max={20}
-                onChange={(v2) => aendere(o.id, { breite: v2 })} />
+                onChange={(v2) => aendere(o.id, { breite: v2 })}
+                fehler={fehlerZu(meldungen, `oef:${o.id}:breite`)} />
               <ZahlFeld label="Höhe" einheit="m" wert={o.hoehe} min={0.1} max={20}
-                onChange={(v2) => aendere(o.id, { hoehe: v2 })} />
+                onChange={(v2) => aendere(o.id, { hoehe: v2 })}
+                fehler={fehlerZu(meldungen, `oef:${o.id}:hoehe`)} />
             </div>
+
+            {/* Meldungen, die die Öffnung als Ganzes betreffen
+                (Überschneidungen, zu schmale Restpfeiler) */}
+            {meldungen
+              .filter((m) => m.feld === `oef:${o.id}`)
+              .map((m, k) => (
+                <div
+                  key={k}
+                  className={m.schwere === "fehler" ? "feldfehler block" : "warnbox"}
+                >
+                  {m.text}
+                </div>
+              ))}
             {v && (
               <div className="detail-vorschlag">
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>

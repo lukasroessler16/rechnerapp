@@ -9,9 +9,10 @@
  * keine Datenbank – jeder Aufruf ist eigenständig.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Projekt } from "@/lib/types";
 import { neuesProjekt } from "@/lib/standardwerte";
+import { pruefeProjekt, schrittZuMeldung } from "@/lib/validierung";
 import SkizzeSVG from "./SkizzeSVG";
 import {
   Step1Bauteil,
@@ -39,23 +40,56 @@ export default function Wizard() {
   const [schritt, setSchritt] = useState(0);
   const [geladen, setGeladen] = useState(false);
 
-  // Zustand aus sessionStorage wiederherstellen (nur im Browser)
+  // Zustand wiederherstellen (nur im Browser)
   useEffect(() => {
     try {
       const roh = sessionStorage.getItem("bewehrung_projekt");
-      if (roh) setProjekt({ ...neuesProjekt(), ...JSON.parse(roh) });
+      if (roh) {
+        setProjekt({ ...neuesProjekt(), ...JSON.parse(roh) });
+      } else {
+        // Neuer Aufruf: Firmendaten und Logo aus einem früheren Durchlauf
+        // übernehmen – Baumeister rechnen meist mehrere Bauteile nacheinander
+        // und müssen ihr Logo dann nicht jedes Mal neu hochladen.
+        const gesichert = localStorage.getItem("bewehrung_firmendaten");
+        if (gesichert) {
+          const fd = JSON.parse(gesichert);
+          setProjekt((p) => ({
+            ...p,
+            // Datum bewusst nicht übernehmen: das soll immer aktuell sein
+            firmendaten: { ...p.firmendaten, ...fd, datum: p.firmendaten.datum },
+          }));
+        }
+      }
     } catch {
       /* defekte Daten ignorieren */
     }
     setGeladen(true);
   }, []);
 
-  // Zustand fortlaufend sichern
+  // Zustand fortlaufend sichern: Geometrie nur für diese Sitzung,
+  // Firmendaten dauerhaft (überdauern das Schließen des Tabs)
   useEffect(() => {
-    if (geladen) sessionStorage.setItem("bewehrung_projekt", JSON.stringify(projekt));
+    if (!geladen) return;
+    try {
+      sessionStorage.setItem("bewehrung_projekt", JSON.stringify(projekt));
+      localStorage.setItem(
+        "bewehrung_firmendaten",
+        JSON.stringify(projekt.firmendaten)
+      );
+    } catch {
+      /* Speicher voll oder gesperrt – Eingaben bleiben trotzdem nutzbar */
+    }
   }, [projekt, geladen]);
 
   const set: Setzer = (fn) => setProjekt(fn);
+
+  // Schritte mit blockierenden Fehlern in der Leiste rot markieren
+  const fehlerSchritte = useMemo(() => {
+    const menge = new Set<number>();
+    for (const m of pruefeProjekt(projekt))
+      if (m.schwere === "fehler") menge.add(schrittZuMeldung(m));
+    return menge;
+  }, [projekt]);
 
   const inhalte = [
     <Step1Bauteil key="1" projekt={projekt} set={set} />,
@@ -74,10 +108,17 @@ export default function Wizard() {
           {SCHRITTE.map((name, i) => (
             <li
               key={name}
-              className={i === schritt ? "aktiv" : i < schritt ? "erledigt" : ""}
+              className={[
+                i === schritt ? "aktiv" : i < schritt ? "erledigt" : "",
+                fehlerSchritte.has(i) ? "fehlerhaft" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onClick={() => setSchritt(i)}
+              title={fehlerSchritte.has(i) ? "Dieser Schritt enthält Fehler" : undefined}
             >
               {i + 1} {name}
+              {fehlerSchritte.has(i) && " !"}
             </li>
           ))}
         </ol>

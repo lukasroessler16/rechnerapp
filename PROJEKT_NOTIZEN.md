@@ -32,6 +32,25 @@ Schrägstäbe Ø12 L=1,00. KEINE statische Bemessung → Warnhinweise überall.
 - **Schritt 5** in Gruppen (Beton / Bewehrung) gegliedert, mit Normprüfung
   Betonklasse ↔ Expositionsklasse und Live-Kennwerten am Fuß des Schritts.
 
+## Zahlung, Zustellung, Recht (Stand aktuell)
+- **Rücktrittsverzicht (§ 18 Abs. 1 Z 11 FAGG):** Pflicht-Checkbox in
+  `components/Vorschau.tsx`; `app/api/checkout/route.ts` lehnt einen Checkout
+  ohne `verzichtBestaetigt: true` mit 400 ab. Zeitpunkt wird als
+  Stripe-Metadatum `widerrufsverzicht` protokolliert.
+- **E-Mail-Zustellung:** `app/api/stripe-webhook/route.ts` (Ereignis
+  `checkout.session.completed`, Signaturprüfung via
+  `constructEventAsync`) ruft `lib/email.ts` auf (Resend über REST, keine
+  neue Abhängigkeit). Ohne `RESEND_API_KEY`/`MAIL_ABSENDER` passiert nichts –
+  App läuft normal weiter.
+- **Logo beim Wiederaufruf:** Firmendaten inkl. Logo liegen zusätzlich in
+  `localStorage` (`bewehrung_firmendaten`); der Wizard füllt sie bei einem
+  neuen Aufruf vor, die Erfolgsseite nutzt sie als Rückfallebene.
+- **Noch offen vor Livegang:** Impressum + vollständige Datenschutzerklärung
+  (beides Platzhalter in `app/rechtliches/page.tsx`), AGB, Stripe-Livemodus,
+  Steuerthema (Kleinunternehmer/OSS/Reverse Charge) mit Steuerberater,
+  Statiker-Review, eigene Domain. **Vercel Hobby ist nur nicht-kommerziell** –
+  vor dem ersten Verkauf auf Pro wechseln oder zu Netlify umziehen.
+
 ## Offene Punkte / mögliche v2
 - Impressum in `app/rechtliches/page.tsx` ausfüllen (Platzhalter!).
 - Statiker-Review der Konstruktionsregeln vor Live-Verkauf.
