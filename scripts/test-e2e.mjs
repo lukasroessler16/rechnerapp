@@ -17,7 +17,7 @@ seite.on("console", (m) => {
   if (m.type() === "error") fehler.push("console: " + m.text());
 });
 
-await seite.goto(BASIS, { waitUntil: "networkidle" });
+await seite.goto(BASIS + "/rechner", { waitUntil: "networkidle" });
 
 // Schritt 1 → 2: Wand ist vorgewählt
 await seite.click("text=Weiter →");

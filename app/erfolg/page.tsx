@@ -85,7 +85,7 @@ function ErfolgInhalt() {
         <h2>Keine Zahlungssession gefunden</h2>
         <p>
           Diese Seite ist nur nach einer abgeschlossenen Zahlung erreichbar.{" "}
-          <Link href="/">Zurück zum Rechner</Link>
+          <Link href="/rechner">Zurück zum Rechner</Link>
         </p>
       </main>
     );
@@ -123,7 +123,7 @@ function ErfolgInhalt() {
         tragwerksplanungsbefugten Person zu prüfen.
       </div>
       <p style={{ marginTop: 18 }}>
-        <Link href="/">← Neue Berechnung starten</Link>
+        <Link href="/rechner">← Neue Berechnung starten</Link>
       </p>
     </main>
   );

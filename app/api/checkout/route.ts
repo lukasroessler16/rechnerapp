@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         widerrufsverzicht: new Date().toISOString(),
       },
       success_url: `${basis}/erfolg?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${basis}/?abbruch=1`,
+      cancel_url: `${basis}/rechner?abbruch=1`,
       // Rechnungs-/Steuerdaten bewusst minimal: keine Registrierung nötig
       billing_address_collection: "auto",
     });

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 /**
  * Bausteine für die Rechtstexte (Impressum, Datenschutz, Nutzungsbedingungen).
  *
@@ -21,7 +23,7 @@ export function BetreiberHinweis({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Rahmen einer Rechtstextseite */
+/** Rahmen einer Rechtstextseite – mit Rücksprung zur Startseite */
 export function RechtsSeite({
   titel,
   stand,
@@ -32,10 +34,19 @@ export function RechtsSeite({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mitte panel rechtstext">
-      <h2>{titel}</h2>
-      {stand && <p className="stand">Stand: {stand}</p>}
-      {children}
+    <main className="mitte">
+      <p className="zurueck">
+        <Link href="/">← Zurück zur Startseite</Link>
+      </p>
+      <div className="panel rechtstext">
+        <h2>{titel}</h2>
+        {stand && <p className="stand">Stand: {stand}</p>}
+        {children}
+      </div>
+      <p className="zurueck unten">
+        <Link href="/">← Zurück zur Startseite</Link>
+        <Link href="/rechner">Zum Rechner →</Link>
+      </p>
     </main>
   );
 }

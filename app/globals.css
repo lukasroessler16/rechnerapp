@@ -37,13 +37,217 @@ a { color: var(--accent); }
 .kopf {
   background: var(--ink);
   color: #fff;
-  padding: 14px 24px;
+  padding: 12px 24px;
   display: flex;
-  align-items: baseline;
-  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
 }
-.kopf h1 { font-size: 18px; margin: 0; letter-spacing: 0.3px; }
-.kopf .untertitel { color: #9aa4b2; font-size: 13px; }
+.kopf-marke { color: #fff; text-decoration: none; display: inline-block; }
+.kopf-marke:hover .logo-zeile b { color: #ffb08a; }
+.kopf-nav { display: flex; align-items: center; gap: 18px; }
+.kopf-nav a { color: #c3cad4; text-decoration: none; font-size: 14px; }
+.kopf-nav a:hover { color: #fff; }
+.kopf-nav a.knopf { color: var(--accent-ink); }
+
+/* ---------- Marke ---------- */
+.logo-zeile { display: inline-flex; align-items: center; gap: 10px; }
+.logo-zeile b { font-size: 18px; font-weight: 650; letter-spacing: 0.4px; }
+.logo-zeile em { font-style: normal; color: #9aa4b2; font-size: 13px; }
+@media (max-width: 620px) { .logo-zeile em { display: none; } }
+
+.logo-gestapelt { display: inline-block; text-align: left; margin-bottom: 22px; }
+.logo-name {
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: 3px;
+  margin-top: 8px;
+}
+.logo-zusatz {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.fuss-marke {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+
+/* ---------- Startseite ---------- */
+.start { max-width: 1120px; margin: 0 auto; padding: 0 24px 40px; }
+
+.start-hero {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.05fr);
+  gap: 32px;
+  align-items: center;
+  padding: 40px 0 8px;
+}
+.start-hero { padding: 44px 0 8px; }
+.start-hero h2 { font-size: 31px; line-height: 1.18; margin: 0 0 14px; letter-spacing: -0.4px; }
+figure.start-skizze { margin: 0; }
+.start-lead { font-size: 16px; color: var(--ink-soft); margin: 0 0 22px; max-width: 46ch; }
+.start-knoepfe { display: flex; flex-wrap: wrap; gap: 10px; }
+.knopf.gross { font-size: 15.5px; padding: 13px 24px; }
+.start-klein { font-size: 12.5px; color: var(--ink-soft); margin: 10px 0 0; }
+
+.start-skizze {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.start-skizze-kopf,
+.start-skizze-fuss { font-size: 12px; color: var(--ink-soft); }
+.start-skizze-kopf { margin-bottom: 6px; font-weight: 600; }
+.start-skizze-fuss { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+.start-skizze svg { width: 100%; height: auto; display: block; }
+
+.start-block { padding: 40px 0 8px; }
+.start-block h3 { font-size: 21px; margin: 0 0 6px; }
+.start-blocktext { color: var(--ink-soft); margin: 0 0 20px; font-size: 14.5px; }
+
+.start-schritte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 18px; }
+.start-schritt {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.start-schritt .nummer {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-weight: 700; font-size: 14px;
+}
+.start-schritt h4 { margin: 12px 0 6px; font-size: 15.5px; }
+.start-schritt p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+
+.start-dokumente { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.start-dokument {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  text-align: center;
+}
+.start-dokument .vorschaurahmen {
+  height: 210px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.start-dokument .dokblatt {
+  max-width: 100%; max-height: 210px; width: auto; height: auto; display: block;
+  filter: drop-shadow(0 2px 6px rgba(28, 36, 48, 0.12));
+}
+.start-dokument h4 { margin: 0 0 6px; font-size: 16px; }
+.start-dokument p { margin: 0 0 12px; font-size: 13.5px; color: var(--ink-soft); text-align: left; }
+.start-dokument a { font-size: 13.5px; font-weight: 600; }
+
+.start-zweispalt { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; align-items: start; }
+.start-zweispalt p { font-size: 14.5px; }
+.start-haftung {
+  background: var(--warn-bg);
+  border: 1px solid #f5c98c;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  color: var(--warn);
+}
+.start-haftung p { font-size: 13.5px; margin: 8px 0 0; }
+
+.start-preis {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 28px;
+  align-items: center;
+  background: var(--ink);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  margin-top: 44px;
+}
+.start-preis h3 { margin: 0 0 8px; font-size: 21px; }
+.start-preis p { margin: 0; color: #c3cad4; font-size: 14.5px; }
+.start-preisbox {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+}
+.start-betrag { font-size: 38px; font-weight: 800; line-height: 1; }
+.start-betrag-text { font-size: 13px; color: #c3cad4; margin: 4px 0 14px; }
+.start-preisbox .start-klein { color: #9aa4b2; }
+
+.start-faq { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; margin-top: 16px; }
+.start-faq h4 { margin: 0 0 4px; font-size: 15px; }
+.start-faq p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+
+.start-abschluss { text-align: center; padding: 44px 0 8px; }
+
+.start-preis-links { margin-top: 14px !important; }
+.start-preis-links a { color: #ffb08a; }
+
+.start-hinweis {
+  margin-top: 40px;
+  border-left: 3px solid var(--line);
+  padding: 2px 0 2px 18px;
+}
+.start-hinweis p { margin: 0; font-size: 13.5px; color: var(--ink-soft); max-width: 78ch; }
+
+/* ---------- Beispielseite ---------- */
+.beispiel-kopf { padding: 8px 0 0; }
+.beispiel-kopf h2 { font-size: 27px; margin: 0 0 10px; }
+.beispiel-bauteil {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-top: 16px;
+}
+.beispiel-daten {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.beispiel-daten h4 { margin: 0 0 12px; font-size: 16px; }
+.beispiel-daten dl { margin: 0; }
+.beispiel-daten dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+.beispiel-daten dl > div:last-child { border-bottom: none; }
+.beispiel-daten dt { color: var(--ink-soft); }
+.beispiel-daten dd { margin: 0; text-align: right; }
+@media (max-width: 900px) { .beispiel-bauteil { grid-template-columns: 1fr; } }
+
+@media (max-width: 900px) {
+  .start-hero,
+  .start-zweispalt,
+  .start-preis,
+  .start-faq { grid-template-columns: 1fr; }
+  .start-schritte,
+  .start-dokumente { grid-template-columns: 1fr; }
+  .start-hero h2 { font-size: 25px; }
+}
+
+/* Rücksprung auf den Rechtstextseiten */
+.zurueck { margin: 18px 0 12px; font-size: 13.5px; }
+.zurueck.unten { display: flex; gap: 22px; margin: 16px 0 0; }
 
 .fuss {
   max-width: 1200px;
@@ -196,7 +400,8 @@ p.schritt-hilfe { margin: 0 0 16px; color: var(--ink-soft); font-size: 13.5px; }
 
 /* ---------- Buttons ---------- */
 .knopfleiste { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; }
-button.knopf {
+/* gilt für <button> und <a class="knopf"> gleichermaßen */
+.knopf {
   padding: 10px 18px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -205,11 +410,14 @@ button.knopf {
   font-weight: 600;
   cursor: pointer;
   color: var(--ink);
+  font-family: inherit;
+  line-height: 1.3;
 }
-button.knopf.primaer { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-button.knopf.primaer:hover { background: #d9480f; }
-button.knopf.klein { padding: 5px 10px; font-size: 12.5px; font-weight: 500; }
+.knopf.primaer { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.knopf.primaer:hover { background: #d9480f; }
+.knopf.klein { padding: 5px 10px; font-size: 12.5px; font-weight: 500; }
 button.knopf:disabled { opacity: 0.5; cursor: not-allowed; }
+a.knopf { text-decoration: none; display: inline-block; }
 
 /* ---------- Vorschau / Paywall ---------- */
 .kennwert-gitter { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }

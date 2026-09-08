@@ -24,7 +24,7 @@ seite.on("console", (m) => {
   if (m.type() === "error") fehler.push("console: " + m.text());
 });
 
-await seite.goto(BASIS, { waitUntil: "networkidle" });
+await seite.goto(BASIS + "/rechner", { waitUntil: "networkidle" });
 await seite.click("text=Weiter →");
 await seite.waitForSelector("text=Grundmaße");
 
