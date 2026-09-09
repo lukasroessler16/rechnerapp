@@ -25,7 +25,14 @@ const FORM_KURZ: Record<string, string> = {
   schraegstab: "Schrägstab",
 };
 
-export default function Vorschau({ projekt }: { projekt: Projekt }) {
+export default function Vorschau({
+  projekt,
+  nr,
+}: {
+  projekt: Projekt;
+  /** Nummer in der bauteilabhängigen Schrittfolge */
+  nr: number;
+}) {
   const ergebnis = useMemo(() => berechneBewehrung(projekt), [projekt]);
   // Eingabefehler blockieren die Zahlung – niemand soll für ein
   // geometrisch unmögliches Bauteil bezahlen.
@@ -73,7 +80,7 @@ export default function Vorschau({ projekt }: { projekt: Projekt }) {
 
   return (
     <>
-      <h2 className="schritt-titel">7 · Ergebnis &amp; Freischaltung</h2>
+      <h2 className="schritt-titel">{nr} · Ergebnis &amp; Freischaltung</h2>
       <p className="schritt-hilfe">
         Zusammenfassung der Bewehrungsermittlung. Die vollständigen Dokumente
         (Bauplan, Biegeliste, Stückliste als PDF) erhalten Sie nach der Zahlung.

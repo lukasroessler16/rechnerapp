@@ -41,7 +41,18 @@ export async function erzeugeBauplan(
   const par = projekt.parameter;
   const k = ergebnis.kennwerte;
   zeile(`Bauteil: ${modul.name}`);
-  zeile(modul.masseText(projekt).replace(`${modul.name} `, ""));
+  // Die Maßangabe kann lang werden (Stützmauer). Sie wird an den Trennpunkten
+  // umbrochen, damit sie nicht über den Blattrand hinausläuft.
+  const SPALTE = 287 - ix - 2; // verfügbare Breite bis zum Planrahmen [mm]
+  let puffer = "";
+  for (const teil of modul.masseText(projekt).replace(`${modul.name} `, "").split(" · ")) {
+    const versuch = puffer ? `${puffer} · ${teil}` : teil;
+    if (puffer && z.textBreite(versuch, 7.5) > SPALTE) {
+      zeile(puffer);
+      puffer = teil;
+    } else puffer = versuch;
+  }
+  if (puffer) zeile(puffer);
   iy -= 2;
   zeile(`Beton: ${par.betonklasse}`, true);
   zeile(`Exposition: ${par.expositionsklasse}`);
@@ -58,7 +69,8 @@ export async function erzeugeBauplan(
 
   /* ---------- Hinweisblock ---------- */
   z.text(
-    "HINWEIS: Mengenermittlung auf Basis Mindestbewehrung EC2/ÖNORM B 1992-1-1. Keine statische Bemessung!",
+    modul.planHinweis ??
+      "HINWEIS: Mengenermittlung auf Basis Mindestbewehrung EC2/ÖNORM B 1992-1-1. Keine statische Bemessung!",
     14,
     16,
     6.5,

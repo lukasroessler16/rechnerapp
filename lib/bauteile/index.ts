@@ -14,6 +14,9 @@ import { wand } from "./wand";
 import { bodenplatte, deckenplatte } from "./platte";
 import { stuetze } from "./stuetze";
 import { traeger } from "./traeger";
+import { streifenfundament } from "./streifenfundament";
+import { einzelfundament } from "./einzelfundament";
+import { stuetzmauer } from "./stuetzmauer";
 
 export const BAUTEILE: Bauteilmodul[] = [
   wand,
@@ -21,6 +24,9 @@ export const BAUTEILE: Bauteilmodul[] = [
   bodenplatte,
   stuetze,
   traeger,
+  streifenfundament,
+  einzelfundament,
+  stuetzmauer,
 ];
 
 /** Standard-Bauteil eines neuen Projekts */
@@ -36,10 +42,19 @@ export function istBauteil(id: unknown): boolean {
   return typeof id === "string" && BAUTEILE.some((b) => b.id === id);
 }
 
-/** Startwerte der Maße eines Bauteils */
+/**
+ * Alle Zahlenfelder eines Bauteils: Grundmaße plus etwaige Zusatzkennwerte.
+ * Validierung, Payload-Prüfung und Standardwerte arbeiten immer mit dieser
+ * Liste, damit ein Zusatzfeld nirgends vergessen werden kann.
+ */
+export function alleMassfelder(modul: Bauteilmodul) {
+  return [...modul.masse, ...(modul.zusatz?.felder ?? [])];
+}
+
+/** Startwerte der Maße und Kennwerte eines Bauteils */
 export function standardMasse(modul: Bauteilmodul): Record<string, number> {
   const m: Record<string, number> = {};
-  for (const f of modul.masse) m[f.schluessel] = f.standard;
+  for (const f of alleMassfelder(modul)) m[f.schluessel] = f.standard;
   return m;
 }
 

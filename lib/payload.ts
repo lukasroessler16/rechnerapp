@@ -18,7 +18,7 @@
 
 import { deflateSync, inflateSync } from "zlib";
 import { Projekt } from "./types";
-import { bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
+import { alleMassfelder, bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
 
 const CHUNK = 450;
 const MAX_CHUNKS = 40;
@@ -69,7 +69,7 @@ export function validiereProjekt(p: unknown): Projekt {
 
   /* ---------- Grundmaße: nur bekannte Felder, jeweils im Bereich ---------- */
   const masse: Record<string, number> = {};
-  for (const f of modul.masse)
+  for (const f of alleMassfelder(modul))
     masse[f.schluessel] = num(q.masse?.[f.schluessel], f.min, f.max, f.label);
   q.masse = masse;
 

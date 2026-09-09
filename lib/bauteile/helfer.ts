@@ -15,7 +15,9 @@ import {
   Lagermatte,
   MATTEN_STOSS,
   VERSCHNITT_FAKTOR,
+  FYK,
   matteWaehlen,
+  stabflaeche,
   uebergreifung,
 } from "../normdaten";
 import { Ansicht, Kontext, Zeichenelement } from "./typen";
@@ -159,6 +161,151 @@ export function buegelLagen(
   for (let x = grenzeE; x <= ende + 1e-6 && lagen.length < 400; x += sv) lagen.push(x);
   if (lagen.length === 0) lagen.push(laenge / 2);
   return lagen;
+}
+
+/* ------------------------------------------------------------------ */
+/* Fundamente: Betondeckung und Stabraster                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Mindestbetondeckung von Fundamenten nach EC2 4.4.1.3(4) [mm].
+ * Gilt an der Sohle und an den Seitenflächen und überschreibt den aus der
+ * Expositionsklasse ermittelten Wert, wenn sie größer ist.
+ */
+export const C_MIN_UNTERGRUND: Record<string, number> = {
+  sauberkeitsschicht: 40,
+  erdreich: 75,
+};
+
+/**
+ * Konstruktive Bewehrung gedrungener Fundamente [cm²/m].
+ * Entspricht etwa Ø8/25 und deckt Zwang, Schwinden und die Transportlasten
+ * des Bewehrungskorbs ab. Ein biegesteifes Fundament (Kragarm ≤ Höhe) trägt
+ * den Sohldruck über Druckstreben ab und braucht nach EC2 12 keine
+ * Biege-Mindestbewehrung.
+ */
+export const AS_KONSTRUKTIV_FUNDAMENT = 2.0;
+
+export interface Fundamentdeckung {
+  /** Betondeckung an Sohle und Seitenflächen [m] */
+  cU: number;
+  /** Betondeckung an der Oberseite [m] */
+  cO: number;
+  /** Sohldeckung in Millimetern (für Beschriftungen) */
+  cUmm: number;
+  /** Hinweis, falls die Deckung gegenüber der Expositionsklasse angehoben wurde */
+  hinweis?: string;
+}
+
+/** Ermittelt die Betondeckung eines Fundaments aus Untergrund und Parametern */
+export function fundamentDeckung(projekt: Projekt): Fundamentdeckung {
+  const cnom = projekt.parameter.betondeckung; // [mm]
+  const untergrund = projekt.details.untergrund;
+  const cMin = C_MIN_UNTERGRUND[untergrund] ?? 40;
+  const cUmm = Math.max(cnom, cMin);
+  return {
+    cU: cUmm / 1000,
+    cO: cnom / 1000,
+    cUmm,
+    hinweis:
+      cUmm > cnom
+        ? `Betondeckung an Sohle und Seitenflächen auf ${cUmm} mm erhöht: Beim Betonieren ${
+            untergrund === "erdreich"
+              ? "unmittelbar gegen Erdreich"
+              : "gegen eine Sauberkeitsschicht"
+          } fordert EC2 4.4.1.3(4) mindestens ${cMin} mm – der Wert aus der Expositionsklasse (${cnom} mm) reicht dafür nicht.`
+        : undefined,
+  };
+}
+
+export interface Stabraster {
+  /** Stabdurchmesser [mm] */
+  ds: number;
+  /** Achsabstand [m] */
+  s: number;
+  /** vorhandene Bewehrung [cm²/m] */
+  as: number;
+}
+
+/**
+ * Wählt die wirtschaftlichste Kombination aus Stabdurchmesser und Abstand,
+ * die die geforderte Bewehrung [cm²/m] abdeckt. Reicht keine Kombination,
+ * wird die stärkste geliefert – der Aufrufer meldet das als Warnung.
+ */
+export function stabRaster(
+  asErf: number,
+  durchmesser: number[],
+  abstaendeCm: number[]
+): Stabraster {
+  const kombis = durchmesser
+    .flatMap((ds) => abstaendeCm.map((sCm) => ({ ds, sCm, as: (stabflaeche(ds) * 100) / sCm })))
+    .sort((a, b) => a.as - b.as);
+  const wahl = kombis.find((k) => k.as >= asErf) ?? kombis[kombis.length - 1];
+  return { ds: wahl.ds, s: wahl.sCm / 100, as: Math.round(wahl.as * 100) / 100 };
+}
+
+/** Stückzahl in einem gleichmäßigen Raster über eine Strecke (mindestens 2) */
+export const imRaster = (strecke: number, abstand: number) =>
+  Math.max(2, Math.floor(strecke / abstand) + 1);
+
+/* ------------------------------------------------------------------ */
+/* Vereinfachte Biegebemessung (nur für Bauteile mit bekannter Last)   */
+/* ------------------------------------------------------------------ */
+
+/** Bemessungswert der Stahlspannung f_yd = f_yk / 1,15 [kN/cm²] */
+export const FYD = FYK / 1.15 / 10;
+/** Teilsicherheitsbeiwert Beton */
+const GAMMA_C = 1.5;
+/** bezogenes Moment, ab dem ohne Druckbewehrung nicht mehr bemessen wird */
+const MU_GRENZE = 0.296;
+
+export interface Bemessung {
+  /** statische Nutzhöhe [m] */
+  d: number;
+  /** innerer Hebelarm [m] */
+  z: number;
+  /** bezogenes Moment */
+  mu: number;
+  /** erforderliche Bewehrung [cm²/m] */
+  asErf: number;
+  /** Druckzone überlastet – Querschnitt zu klein */
+  ueberlastet: boolean;
+}
+
+/**
+ * Biegebemessung eines Rechteckquerschnitts je laufendem Meter, ohne
+ * Druckbewehrung. Bewusst das übliche Handverfahren: bezogenes Moment µ,
+ * daraus die Druckzonenhöhe und der innere Hebelarm.
+ *
+ * Nur dort verwenden, wo die Einwirkung tatsächlich bekannt ist (Erddruck
+ * einer Stützmauer). Für Bauteile mit unbekannter Last bleibt es bei der
+ * Mindestbewehrung – eine Bemessung mit geratenen Lasten wäre wertlos.
+ *
+ * @param mEd  Bemessungsmoment [kNm je m Bauteilbreite]
+ * @param h    Bauteildicke [m]
+ * @param c    Betondeckung auf der Zugseite [m]
+ * @param ds   angenommener Stabdurchmesser [mm]
+ * @param fck  Betondruckfestigkeit [N/mm²]
+ */
+export function biegebemessung(
+  mEd: number,
+  h: number,
+  c: number,
+  ds: number,
+  fck: number
+): Bemessung {
+  const d = Math.max(0.02, h - c - ds / 2000);
+  const fcd = fck / GAMMA_C; // [N/mm²]
+  // µ = M / (b · d² · fcd), alles in N und mm, b = 1000 mm
+  const mu = (mEd * 1e6) / (1000 * Math.pow(d * 1000, 2) * fcd);
+  const ueberlastet = mu > MU_GRENZE;
+  const begrenzt = Math.min(mu, MU_GRENZE);
+  // Druckzonenhöhe ξ = x/d und Hebelarm z = d · (1 − 0,4 ξ), gedeckelt auf 0,95 d
+  const xi = 1.25 * (1 - Math.sqrt(Math.max(0, 1 - 2 * begrenzt)));
+  const z = Math.min(0.95 * d, d * (1 - 0.4 * xi));
+  // As = M / (z · f_yd), M in kNcm, z in cm
+  const asErf = (mEd * 100) / (z * 100 * FYD);
+  return { d, z, mu, asErf: Math.round(asErf * 100) / 100, ueberlastet };
 }
 
 /* ------------------------------------------------------------------ */

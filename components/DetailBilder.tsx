@@ -215,6 +215,59 @@ export function IconTraeger() {
   );
 }
 
+/** Streifenfundament: breiter Fundamentstreifen mit Wandstumpf darüber */
+export function IconStreifenfundament() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Streifenfundament">
+      <rect x="10" y="34" width="70" height="20" fill={beton} stroke={kante} />
+      <rect x="36" y="8" width="18" height="26" fill={beton} stroke={kante} strokeDasharray="3 2" />
+      <path d="M 18 46 V 39 H 72 V 46" fill="none" stroke={stahl} strokeWidth="2.2" />
+      {[24, 38, 52, 66].map((x) => (
+        <circle key={x} cx={x} cy="39" r="1.8" fill={stahl} />
+      ))}
+      <line x1="10" y1="56" x2="80" y2="56" stroke={kante} strokeWidth="1" />
+      {[12, 22, 32, 42, 52, 62, 72].map((x) => (
+        <line key={x} x1={x} y1="64" x2={x + 7} y2="56" stroke={kante} strokeWidth="0.8" />
+      ))}
+    </svg>
+  );
+}
+
+/** Einzelfundament: quadratische Fundamentplatte mit Stützenstumpf */
+export function IconEinzelfundament() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Einzelfundament">
+      <rect x="18" y="32" width="54" height="22" fill={beton} stroke={kante} />
+      <rect x="38" y="8" width="14" height="24" fill={beton} stroke={kante} strokeDasharray="3 2" />
+      <path d="M 24 46 V 38 H 66 V 46" fill="none" stroke={stahl} strokeWidth="2.2" />
+      {[28, 37, 46, 55, 63].map((x) => (
+        <circle key={x} cx={x} cy="42" r="1.7" fill={stahl} />
+      ))}
+      <line x1="18" y1="56" x2="72" y2="56" stroke={kante} strokeWidth="1" />
+      {[20, 30, 40, 50, 60].map((x) => (
+        <line key={x} x1={x} y1="64" x2={x + 7} y2="56" stroke={kante} strokeWidth="0.8" />
+      ))}
+    </svg>
+  );
+}
+
+/** Stützmauer: Winkelstützmauer mit Hinterfüllung */
+export function IconStuetzmauer() {
+  return (
+    <svg viewBox="0 0 90 70" width="90" height="70" aria-label="Stützmauer">
+      <rect x="14" y="48" width="52" height="10" fill={beton} stroke={kante} />
+      <rect x="30" y="10" width="12" height="38" fill={beton} stroke={kante} />
+      <path d="M 42 12 V 52 H 62" fill="none" stroke={stahl} strokeWidth="2.2" />
+      <line x1="18" y1="55" x2="62" y2="55" stroke={stahl} strokeWidth="1.6" />
+      {[46, 52, 58, 64].map((x) => (
+        <line key={x} x1={x} y1="10" x2={x + 8} y2="18" stroke={kante} strokeWidth="0.8" />
+      ))}
+      <line x1="42" y1="10" x2="74" y2="10" stroke={kante} strokeDasharray="3 2" />
+      <line x1="14" y1="60" x2="66" y2="60" stroke={kante} strokeWidth="1" />
+    </svg>
+  );
+}
+
 /* ---------- Zuordnung bildId → Vorschaubild ---------- */
 
 /**
@@ -229,6 +282,9 @@ export const DETAILBILDER: Record<string, () => React.ReactElement> = {
   icon_bodenplatte: IconBodenplatte,
   icon_stuetze: IconStuetze,
   icon_traeger: IconTraeger,
+  icon_streifenfundament: IconStreifenfundament,
+  icon_einzelfundament: IconEinzelfundament,
+  icon_stuetzmauer: IconStuetzmauer,
   // Anschlussdetails
   bodenplatte: DetailBodenplatte,
   streifenfundament: DetailStreifenfundament,

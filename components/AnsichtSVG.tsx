@@ -8,13 +8,31 @@
  *
  * Mehrere Ansichten eines Bauteils (z. B. Längs- und Querschnitt einer
  * Stütze) werden im gleichen Maßstab nebeneinandergestellt.
+ *
+ * Beschriftungsmaßstab: Das SVG wird auf die Breite des Skizzenfelds
+ * eingepasst. Ein 10 m langes Streifenfundament ergibt eine viel weitere
+ * viewBox als eine 3 m hohe Stütze – bei fester Schriftgröße käme die
+ * Beschriftung dort nur halb so groß heraus. Deshalb werden Schriftgrößen,
+ * Strichstärken und Randabstände mit dem Faktor `k` mitskaliert, sodass die
+ * Beschriftung auf dem Bildschirm bei jedem Bauteil etwa gleich groß wirkt.
  */
 
 import { Ansicht, Stil, Zeichenelement } from "@/lib/bauteile/typen";
 
 const M = 100; // SVG-Einheiten je Meter
-const RAND = 120; // Platz für Maßketten und Beschriftungen je Ansicht
 const ABSTAND = 60; // Abstand zwischen zwei Ansichten
+
+/**
+ * Platzbedarf der Beschriftung je Seite einer Ansicht (in SVG-Einheiten,
+ * bei Beschriftungsmaßstab k = 1). Bewusst richtungsabhängig: unten stehen
+ * Maßkette, Randtext und Fußzeile übereinander, rechts nur ein gedrehter
+ * Randtext. Ein rundum gleicher Rand würde kleine Bauteile – ein 1,5 m
+ * großes Einzelfundament etwa – auf einen Bruchteil der Fläche schrumpfen.
+ */
+const RAND = { links: 84, rechts: 34, oben: 58, unten: 100 };
+
+/** Inhaltsbreite, auf die der Beschriftungsmaßstab k = 1 abgestimmt ist */
+const BEZUGSBREITE = 420;
 
 const FARBE = {
   beton: "#e2e5e9",
@@ -49,6 +67,7 @@ function AnsichtGruppe({
   ox,
   oy,
   m,
+  k,
 }: {
   ansicht: Ansicht;
   /** SVG-x der linken Bauteilkante */
@@ -57,11 +76,31 @@ function AnsichtGruppe({
   oy: number;
   /** SVG-Einheiten je Meter dieser Ansicht */
   m: number;
+  /** Beschriftungsmaßstab: skaliert Schrift, Striche und Randabstände */
+  k: number;
 }) {
   const X = (x: number) => ox + x * m;
   const Y = (y: number) => oy - y * m;
   const B = ansicht.breite * m;
   const H = ansicht.hoehe * m;
+  /** Hilfsfunktion: feste Maße auf den Beschriftungsmaßstab bringen */
+  const p = (wert: number) => wert * k;
+
+  /**
+   * Versatzreihe je Maßzahl: 0 = auf der Maßkette. Ist eine Zahl breiter als
+   * ihr Feld, wandert sie nach außen – benachbarte enge Felder abwechselnd auf
+   * zwei Reihen, damit sich nichts überschreibt. Die Textbreite wird grob aus
+   * der Zeichenzahl geschätzt; das reicht für diese Entscheidung.
+   */
+  const versatz = (felder: number[]) => {
+    let reihe = 0;
+    return felder.map((b) => {
+      const geschaetzt = f(b).length * 0.58 * p(15);
+      const passt = geschaetzt <= b * m;
+      reihe = passt ? 0 : reihe === 1 ? 2 : 1;
+      return reihe;
+    });
+  };
 
   /* ---------- Zeichenelemente ---------- */
   const zeichne = (e: Zeichenelement, i: number) => {
@@ -88,7 +127,7 @@ function AnsichtGruppe({
             height={e.h * m}
             fill="none"
             stroke={s.farbe}
-            strokeWidth={s.dicke}
+            strokeWidth={p(s.dicke)}
             strokeDasharray={s.strichmuster}
           />
         );
@@ -103,7 +142,7 @@ function AnsichtGruppe({
             x2={X(e.x2)}
             y2={Y(e.y2)}
             stroke={s.farbe}
-            strokeWidth={s.dicke}
+            strokeWidth={p(s.dicke)}
             strokeDasharray={s.strichmuster}
           />
         );
@@ -119,7 +158,7 @@ function AnsichtGruppe({
             d={d}
             fill="none"
             stroke={s.farbe}
-            strokeWidth={s.dicke}
+            strokeWidth={p(s.dicke)}
             strokeDasharray={s.strichmuster}
           />
         );
@@ -131,13 +170,13 @@ function AnsichtGruppe({
             key={i}
             cx={X(e.x)}
             cy={Y(e.y)}
-            r={Math.max(3.2, e.r * m)}
+            r={Math.max(p(3.2), e.r * m)}
             fill={e.ton === "kante" ? FARBE.kante : FARBE.akzent}
           />
         );
       case "text": {
         const rolle = e.rolle ?? "normal";
-        const groesse = rolle === "marke" ? 16 : rolle === "klein" ? 12 : 14;
+        const groesse = p(rolle === "marke" ? 16 : rolle === "klein" ? 12 : 14);
         const farbe = rolle === "marke" ? FARBE.akzent : FARBE.mass;
         const px = X(e.x);
         const py = Y(e.y) + groesse / 3;
@@ -165,25 +204,29 @@ function AnsichtGruppe({
   const massH = () => {
     const punkte = stuetzpunkte(ansicht.massketteX ?? []);
     if (punkte.length < 2) return null;
-    const y = oy + 40;
+    const y = oy + p(40);
     return (
-      <g stroke={FARBE.mass} strokeWidth="1.2" fill="none">
+      <g stroke={FARBE.mass} strokeWidth={p(1.2)} fill="none">
         <line x1={X(punkte[0])} y1={y} x2={X(punkte[punkte.length - 1])} y2={y} />
         {punkte.map((x) => (
           <g key={x}>
-            <line x1={X(x)} y1={y - 6} x2={X(x)} y2={y + 6} />
-            <line x1={X(x) - 5} y1={y + 5} x2={X(x) + 5} y2={y - 5} />
+            <line x1={X(x)} y1={y - p(6)} x2={X(x)} y2={y + p(6)} />
+            <line x1={X(x) - p(5)} y1={y + p(5)} x2={X(x) + p(5)} y2={y - p(5)} />
           </g>
         ))}
-        {punkte.slice(0, -1).map((x, i) => {
+        {punkte.slice(0, -1).map((x, i, alle) => {
           const b = punkte[i + 1] - x;
+          // Passt die Zahl nicht in ihr Feld, wandert sie versetzt nach außen
+          const reihe = versatz(alle.map((v, j) => punkte[j + 1] - v))[i];
           return (
             <text
               key={i}
               x={X(x + b / 2)}
-              y={y - 9}
+              // Reihe 1 liegt zwischen Kette und Bauteil, Reihe 2 außerhalb –
+              // so bleibt der Platzbedarf unter der Kette klein.
+              y={y + (reihe === 0 ? -p(9) : reihe === 1 ? -p(25) : p(13))}
               textAnchor="middle"
-              fontSize="15"
+              fontSize={p(15)}
               fill={FARBE.mass}
               stroke="none"
             >
@@ -198,29 +241,31 @@ function AnsichtGruppe({
   const massV = () => {
     const punkte = stuetzpunkte(ansicht.massketteY ?? []);
     if (punkte.length < 2) return null;
-    const x = ox - 46;
+    const x = ox - p(46);
     return (
-      <g stroke={FARBE.mass} strokeWidth="1.2" fill="none">
+      <g stroke={FARBE.mass} strokeWidth={p(1.2)} fill="none">
         <line x1={x} y1={Y(punkte[0])} x2={x} y2={Y(punkte[punkte.length - 1])} />
         {punkte.map((y) => (
           <g key={y}>
-            <line x1={x - 6} y1={Y(y)} x2={x + 6} y2={Y(y)} />
-            <line x1={x - 5} y1={Y(y) + 5} x2={x + 5} y2={Y(y) - 5} />
+            <line x1={x - p(6)} y1={Y(y)} x2={x + p(6)} y2={Y(y)} />
+            <line x1={x - p(5)} y1={Y(y) + p(5)} x2={x + p(5)} y2={Y(y) - p(5)} />
           </g>
         ))}
-        {punkte.slice(0, -1).map((y, i) => {
+        {punkte.slice(0, -1).map((y, i, alle) => {
           const b = punkte[i + 1] - y;
           const my = Y(y + b / 2);
+          const reihe = versatz(alle.map((v, j) => punkte[j + 1] - v))[i];
+          const mx = x + (reihe === 0 ? -p(9) : reihe === 1 ? p(9) : -p(27));
           return (
             <text
               key={i}
-              x={x - 9}
+              x={mx}
               y={my}
               textAnchor="middle"
-              fontSize="15"
+              fontSize={p(15)}
               fill={FARBE.mass}
               stroke="none"
-              transform={`rotate(-90 ${x - 9} ${my})`}
+              transform={`rotate(-90 ${mx} ${my})`}
             >
               {f(b)}
             </text>
@@ -235,13 +280,13 @@ function AnsichtGruppe({
   const randPos = (seite: string) => {
     switch (seite) {
       case "unten":
-        return { x: ox + B / 2, y: oy + 64, rot: false };
+        return { x: ox + B / 2, y: oy + p(64), rot: false };
       case "oben":
-        return { x: ox + B / 2, y: oy - H - 14, rot: false };
+        return { x: ox + B / 2, y: oy - H - p(14), rot: false };
       case "links":
-        return { x: ox - 76, y: oy - H / 2, rot: true };
+        return { x: ox - p(76), y: oy - H / 2, rot: true };
       default:
-        return { x: ox + B + 20, y: oy - H / 2, rot: true };
+        return { x: ox + B + p(20), y: oy - H / 2, rot: true };
     }
   };
 
@@ -250,7 +295,7 @@ function AnsichtGruppe({
       {ansicht.elemente.map(zeichne)}
       {massH()}
       {massV()}
-      <g fontSize="13" fill={FARBE.akzent} fontWeight="600">
+      <g fontSize={p(13)} fill={FARBE.akzent} fontWeight="600">
         {rand.map((r, i) => {
           const p = randPos(r.seite);
           return (
@@ -266,11 +311,11 @@ function AnsichtGruppe({
           );
         })}
       </g>
-      <text x={ox + B / 2} y={oy - H - 40} textAnchor="middle" fontSize="16" fontWeight="600" fill={FARBE.kante}>
+      <text x={ox + B / 2} y={oy - H - p(40)} textAnchor="middle" fontSize={p(16)} fontWeight="600" fill={FARBE.kante}>
         {ansicht.eigenerMassstab ? `${ansicht.titel} (vergrößert)` : ansicht.titel}
       </text>
       {ansicht.fuss && (
-        <text x={ox + B / 2} y={oy + 92} textAnchor="middle" fontSize="13" fill={FARBE.mass}>
+        <text x={ox + B / 2} y={oy + p(92)} textAnchor="middle" fontSize={p(13)} fill={FARBE.mass}>
           {ansicht.fuss}
         </text>
       )}
@@ -299,12 +344,20 @@ const MAX_VERHAELTNIS = 1.8;
 export default function AnsichtSVG({ ansichten }: { ansichten: Ansicht[] }) {
   if (ansichten.length === 0) return null;
 
+  // Zielgröße eines Detailschnitts: fix, mindestens aber knapp die Hälfte der
+  // Hauptansicht – sonst wirkt er neben einer langen Ansicht verloren.
+  const hauptBreite = Math.max(
+    ...ansichten.filter((a) => !a.eigenerMassstab).map((a) => a.breite * M),
+    DETAIL_ZIEL
+  );
+  const detailZiel = Math.max(DETAIL_ZIEL, 0.45 * hauptBreite);
+
   /** SVG-Einheiten je Meter für eine Ansicht */
   const faktor = (a: Ansicht) => {
     if (!a.eigenerMassstab) return M;
     const laengsteSeite = Math.max(a.breite, a.hoehe, 0.01);
     // nie kleiner als der Grundmaßstab, aber auch nicht beliebig groß
-    return Math.min(Math.max(M, DETAIL_ZIEL / laengsteSeite), 12 * M);
+    return Math.min(Math.max(M, detailZiel / laengsteSeite), 12 * M);
   };
 
   const bloecke = ansichten.map((a) => {
@@ -315,23 +368,43 @@ export default function AnsichtSVG({ ansichten }: { ansichten: Ansicht[] }) {
   /* ---- ein- oder zweizeilig? ---- */
   const haupt = bloecke.filter((b) => !b.a.eigenerMassstab);
   const detail = bloecke.filter((b) => b.a.eigenerMassstab);
-  const einzeiligB =
-    bloecke.reduce((sum, b) => sum + b.breite + 2 * RAND, 0) + ABSTAND * (bloecke.length - 1);
-  const einzeiligH = Math.max(...bloecke.map((b) => b.hoehe)) + 2 * RAND;
+  const einzeiligB = bloecke.reduce((sum, b) => sum + b.breite, 0);
+  const einzeiligH = Math.max(...bloecke.map((b) => b.hoehe));
   const zweizeilig =
     haupt.length > 0 && detail.length > 0 && einzeiligB / einzeiligH > MAX_VERHAELTNIS;
   const reihen = zweizeilig ? [haupt, detail] : [bloecke];
+
+  /**
+   * Beschriftungsmaßstab: Ein sehr breites Bauteil ergibt eine weite viewBox
+   * und damit eine optisch kleine Beschriftung. Der Faktor gleicht das aus,
+   * indem Schrift, Striche und Ränder proportional mitwachsen. Bezug ist
+   * allein die gezeichnete Breite – die Ränder hängen selbst von k ab und
+   * dürfen deshalb nicht in die Ermittlung eingehen.
+   */
+  const inhaltB = Math.max(
+    ...reihen.map((r) => r.reduce((sum, b) => sum + b.breite, 0) + ABSTAND * (r.length - 1))
+  );
+  const k = Math.min(3, Math.max(0.85, inhaltB / BEZUGSBREITE));
+  const rand = {
+    links: RAND.links * k,
+    rechts: RAND.rechts * k,
+    oben: RAND.oben * k,
+    unten: RAND.unten * k,
+  };
+  const luft = ABSTAND * k;
 
   /* ---- Reihen vermessen ---- */
   const masse = reihen.map((reihe) => ({
     reihe,
     breite:
-      reihe.reduce((sum, b) => sum + b.breite + 2 * RAND, 0) + ABSTAND * (reihe.length - 1),
+      reihe.reduce((sum, b) => sum + b.breite + rand.links + rand.rechts, 0) +
+      luft * (reihe.length - 1),
     inhaltH: Math.max(...reihe.map((b) => b.hoehe)),
   }));
   const gesamtB = Math.max(...masse.map((r) => r.breite));
   const gesamtH =
-    masse.reduce((sum, r) => sum + r.inhaltH + 2 * RAND, 0) + ABSTAND * (masse.length - 1);
+    masse.reduce((sum, r) => sum + r.inhaltH + rand.oben + rand.unten, 0) +
+    luft * (masse.length - 1);
 
   /* ---- Blöcke platzieren ---- */
   const platziert: { a: Ansicht; ox: number; oy: number; m: number }[] = [];
@@ -342,19 +415,19 @@ export default function AnsichtSVG({ ansichten }: { ansichten: Ansicht[] }) {
       platziert.push({
         a: b.a,
         m: b.m,
-        ox: cursor + RAND,
+        ox: cursor + rand.links,
         // Unterkante der Ansicht; kleinere Ansichten hängen mittig in der Reihe
-        oy: reihenOben + RAND + r.inhaltH - (r.inhaltH - b.hoehe) / 2,
+        oy: reihenOben + rand.oben + r.inhaltH - (r.inhaltH - b.hoehe) / 2,
       });
-      cursor += b.breite + 2 * RAND + ABSTAND;
+      cursor += b.breite + rand.links + rand.rechts + luft;
     }
-    reihenOben += r.inhaltH + 2 * RAND + ABSTAND;
+    reihenOben += r.inhaltH + rand.oben + rand.unten + luft;
   }
 
   return (
     <svg viewBox={`0 0 ${gesamtB} ${gesamtH}`} preserveAspectRatio="xMidYMid meet">
       {platziert.map(({ a, ox, oy, m }) => (
-        <AnsichtGruppe key={a.id} ansicht={a} ox={ox} oy={oy} m={m} />
+        <AnsichtGruppe key={a.id} ansicht={a} ox={ox} oy={oy} m={m} k={k} />
       ))}
     </svg>
   );

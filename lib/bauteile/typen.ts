@@ -26,25 +26,37 @@ import { Sammler } from "./sammler";
 /* Eingabefelder                                                       */
 /* ------------------------------------------------------------------ */
 
-/** Ein Zahlenfeld der Grundmaße */
+/**
+ * Ein Zahlenfeld des Bauteils – Grundmaß oder Kennwert.
+ *
+ * Längen werden IMMER in Metern gespeichert und je nach `einheit` umgerechnet
+ * angezeigt. Für Größen, die keine Längen sind (Reibungswinkel, Wichte,
+ * Verkehrslast), wird der gespeicherte Wert unverändert angezeigt.
+ */
 export interface Massfeld {
   /** Schlüssel in `Projekt.masse` */
   schluessel: string;
   label: string;
+  /** Anzeige-Einheit, z. B. "m", "cm", "kN/m³", "°" */
+  einheit: string;
   /**
-   * Anzeige-Einheit. Gespeichert wird IMMER in Metern;
-   * bei "cm" zeigt die Oberfläche den 100-fachen Wert an.
+   * Anzeigewert = gespeicherter Wert × Faktor.
+   * Ohne Angabe: 100 bei "cm", sonst 1.
    */
-  einheit: "m" | "cm";
-  /** zulässiger Bereich in Metern (gilt auch serverseitig) */
+  anzeigeFaktor?: number;
+  /** zulässiger Bereich in der SPEICHER-Einheit (gilt auch serverseitig) */
   min: number;
   max: number;
   /** Schrittweite in der Anzeige-Einheit */
   schritt?: number;
-  /** Startwert in Metern */
+  /** Startwert in der Speicher-Einheit */
   standard: number;
   hinweis?: string;
 }
+
+/** Umrechnungsfaktor Speicher- → Anzeigewert eines Feldes */
+export const feldFaktor = (f: Massfeld) =>
+  f.anzeigeFaktor ?? (f.einheit === "cm" ? 100 : 1);
 
 /** Eine Wahlmöglichkeit eines Detailfelds */
 export interface Detailoption {
@@ -202,8 +214,35 @@ export interface Bauteilmodul {
   /** Planinhalt im Schriftkopf, z. B. "Bewehrungsplan Wand (Ansicht)" */
   planinhalt: string;
 
+  /**
+   * Abschließender fachlicher Hinweis. Ohne Angabe gilt der Standardtext des
+   * Kerns (Mindestbewehrung, keine lastabhängige Bewehrung). Bauteile, die
+   * anders rechnen – etwa die Stützmauer mit ihrer Vorbemessung –, setzen
+   * hier einen passenden Text, damit das Ergebnis sich nicht selbst
+   * widerspricht.
+   */
+  abschlussHinweis?: string;
+
+  /**
+   * Kurzhinweis im Fußbereich des Bauplans. Ohne Angabe steht dort der
+   * Standardsatz zur Mindestbewehrung.
+   */
+  planHinweis?: string;
+
   masse: Massfeld[];
   details: Detailfeld[];
+
+  /**
+   * Weitere Zahleneingaben, die keine Grundmaße sind – etwa Bodenkennwerte
+   * einer Stützmauer. Sie werden im Detailschritt unter eigener Überschrift
+   * angezeigt, landen aber im selben Speicher wie die Maße und werden ebenso
+   * geprüft.
+   */
+  zusatz?: {
+    titel: string;
+    hilfe?: string;
+    felder: Massfeld[];
+  };
 
   /** Kurzbeschreibung der Abmessungen für Listenköpfe, z. B. "8,00 × 2,75 × 0,25 m" */
   masseText(projekt: Projekt): string;

@@ -137,7 +137,7 @@ export default function Wizard() {
     details: <Step4Anschluesse projekt={projekt} set={set} nr={nr("details")} />,
     parameter: <Step5Parameter projekt={projekt} set={set} nr={nr("parameter")} />,
     firmendaten: <Step6Firmendaten projekt={projekt} set={set} nr={nr("firmendaten")} />,
-    ergebnis: <Vorschau projekt={projekt} />,
+    ergebnis: <Vorschau projekt={projekt} nr={nr("ergebnis")} />,
   };
 
   return (

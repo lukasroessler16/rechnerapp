@@ -74,12 +74,15 @@ export function zeichneAnsichten(z: Zeichner, ansichten: Ansicht[]): Planlayout 
    * lesbar sein und nicht in derselben Verkleinerung wie die Ansicht liegen.
    * Er wird nie größer als der Planmaßstab gewählt.
    */
-  const DETAILBOX = 55; // mm, Zielgröße eines Detailschnitts
+  // Zielgröße eines Detailschnitts: in der Breite bescheiden, in der Höhe darf
+  // er die ganze Zeichenfläche nutzen – ein hoher Schnitt wie der einer
+  // Stützmauer wäre sonst unnötig klein.
+  const DETAILBREITE = 70; // mm
   const massstabVon = (a: Ansicht) => {
     if (!a.eigenerMassstab) return massstab;
     const noetigD = Math.max(
-      (a.breite * 1000) / DETAILBOX,
-      (a.hoehe * 1000) / Math.min(DETAILBOX, verfuegbarH)
+      (a.breite * 1000) / DETAILBREITE,
+      (a.hoehe * 1000) / verfuegbarH
     );
     const m = MASSSTAEBE.find((s) => s >= noetigD) ?? 1000;
     return Math.min(m, massstab);
@@ -153,9 +156,17 @@ function zeichneEine(
       z.linie(X(x) - 1.2, my - 1.2, X(x) + 1.2, my + 1.2, 0.5);
       z.linie(X(x), my + 2, X(x), oy, 0.15, GRAU); // Maßhilfslinie
     }
+    // Maßzahlen, die breiter als ihr Feld sind, wandern versetzt nach außen –
+    // sonst überschreiben sich benachbarte Zahlen bei kurzen Abschnitten.
+    let reihe = 0;
     xs.slice(0, -1).forEach((x, i) => {
       const b = xs[i + 1] - x;
-      z.text(de(b), X(x + b / 2), my + 1.2, 6.5, { ausrichtung: "mitte" });
+      const txt = de(b);
+      const passt = z.textBreite(txt, 6.5) + 1 <= b * f;
+      reihe = passt ? 0 : reihe === 1 ? 2 : 1;
+      // Reihe 1 zwischen Kette und Bauteil, Reihe 2 außerhalb der Kette
+      const dy = reihe === 0 ? 1.2 : reihe === 1 ? 4.4 : -2.6;
+      z.text(txt, X(x + b / 2), my + dy, 6.5, { ausrichtung: "mitte" });
     });
   }
 
@@ -169,9 +180,14 @@ function zeichneEine(
       z.linie(mx - 1.2, Y(y) - 1.2, mx + 1.2, Y(y) + 1.2, 0.5);
       z.linie(mx + 2, Y(y), ox, Y(y), 0.15, GRAU);
     }
+    let reiheY = 0;
     ys.slice(0, -1).forEach((y, i) => {
       const b = ys[i + 1] - y;
-      z.text(de(b), mx - 1.5, Y(y + b / 2) - 1, 6.5, { drehung: 90 });
+      const txt = de(b);
+      const passt = z.textBreite(txt, 6.5) + 1 <= b * f;
+      reiheY = passt ? 0 : reiheY === 1 ? 2 : 1;
+      const dx = reiheY === 0 ? -1.5 : reiheY === 1 ? 1.5 : -4.5;
+      z.text(txt, mx + dx, Y(y + b / 2) - 1, 6.5, { drehung: 90 });
     });
   }
 
@@ -179,7 +195,7 @@ function zeichneEine(
   for (const r of a.randtexte ?? []) {
     if (!r.text) continue;
     if (r.seite === "unten")
-      z.text(r.text, ox + B / 2, oy - 17, 7, { ausrichtung: "mitte", farbe: ORANGE });
+      z.text(r.text, ox + B / 2, oy - 19.5, 7, { ausrichtung: "mitte", farbe: ORANGE });
     else if (r.seite === "oben")
       z.text(r.text, ox + B / 2, oy + H + 2.5, 7, { ausrichtung: "mitte", farbe: ORANGE });
     else if (r.seite === "links")
@@ -223,7 +239,11 @@ function zeichneElement(
       break;
     case "rahmen": {
       const s = stil(e.stil ?? "kante");
-      z.rechteck(X(e.x), Y(e.y), e.b * f, e.h * f, { dicke: s.dicke, rand: s.farbe });
+      z.rechteck(X(e.x), Y(e.y), e.b * f, e.h * f, {
+        dicke: s.dicke,
+        rand: s.farbe,
+        strich: s.strich,
+      });
       break;
     }
     case "linie": {

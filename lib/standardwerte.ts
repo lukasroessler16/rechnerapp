@@ -5,6 +5,7 @@
 import { Projekt } from "./types";
 import { cnomAusExposition } from "./normdaten";
 import {
+  alleMassfelder,
   bauteilModul,
   istBauteil,
   standardDetails,
@@ -52,9 +53,9 @@ export function normalisiereProjekt(roh: unknown): Projekt {
   const modul = bauteilModul(bauteil);
 
   const masse: Record<string, number> = {};
-  for (const f of modul.masse) {
+  for (const f of alleMassfelder(modul)) {
     const wert = Number(p.masse?.[f.schluessel]);
-    masse[f.schluessel] = isFinite(wert) && wert > 0 ? wert : f.standard;
+    masse[f.schluessel] = isFinite(wert) && wert >= f.min ? wert : f.standard;
   }
 
   const details: Record<string, string> = {};

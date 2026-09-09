@@ -17,7 +17,7 @@ import {
   standardDetails,
   standardMasse,
 } from "@/lib/bauteile";
-import { Massfeld } from "@/lib/bauteile/typen";
+import { Massfeld, feldFaktor } from "@/lib/bauteile/typen";
 import {
   BETONKLASSEN,
   EXPOSITIONSKLASSEN,
@@ -132,17 +132,18 @@ function MassFeld({
   set: Setzer;
   fehler?: string;
 }) {
-  const inCm = feld.einheit === "cm";
-  const faktor = inCm ? 100 : 1;
+  const faktor = feldFaktor(feld);
   const roh = projekt.masse[feld.schluessel] ?? feld.standard;
+  // Rundung vermeidet Anzeigefehler wie 24,999999 cm
+  const anzeige = Math.round(roh * faktor * 1000) / 1000;
   return (
     <ZahlFeld
       label={feld.label}
       einheit={feld.einheit}
-      wert={inCm ? Math.round(roh * 100) : roh}
+      wert={anzeige}
       min={feld.min * faktor}
       max={feld.max * faktor}
-      schritt={feld.schritt ?? (inCm ? 1 : 0.01)}
+      schritt={feld.schritt ?? (faktor === 100 ? 1 : 0.01)}
       hinweis={feld.hinweis}
       fehler={fehler}
       onChange={(v) =>
@@ -211,7 +212,8 @@ export function Step2Masse({ projekt, set, nr }: StepProps) {
       <p className="schritt-hilfe">
         Maße für {modul.name}. Die Skizze rechts aktualisiert sich live.
       </p>
-      <div className="reihe3">
+      {/* Bei vier Maßfeldern wirkt ein 2×2-Raster ruhiger als 3 + 1 */}
+      <div className={modul.masse.length === 4 ? "reihe" : "reihe3"}>
         {modul.masse.map((f) => (
           <MassFeld
             key={f.schluessel}
@@ -404,6 +406,7 @@ function DetailWahl({
 
 export function Step4Anschluesse({ projekt, set, nr }: StepProps) {
   const modul = bauteilModul(projekt.bauteil);
+  const meldungen = useMemo(() => pruefeProjekt(projekt), [projekt]);
   return (
     <>
       <h2 className="schritt-titel">{nr} · {modul.detailTitel}</h2>
@@ -419,6 +422,25 @@ export function Step4Anschluesse({ projekt, set, nr }: StepProps) {
           }
         />
       ))}
+
+      {/* Zusatzkennwerte, z. B. Bodenkennwerte einer Stützmauer */}
+      {modul.zusatz && (
+        <section className="gruppe" style={{ marginTop: 16 }}>
+          <h3 className="gruppe-titel">{modul.zusatz.titel}</h3>
+          {modul.zusatz.hilfe && <p className="schritt-hilfe">{modul.zusatz.hilfe}</p>}
+          <div className="reihe3">
+            {modul.zusatz.felder.map((f) => (
+              <MassFeld
+                key={f.schluessel}
+                feld={f}
+                projekt={projekt}
+                set={set}
+                fehler={fehlerZu(meldungen, f.schluessel)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }

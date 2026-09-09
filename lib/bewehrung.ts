@@ -64,9 +64,12 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
   // Das Bauteilmodul erzeugt alle Positionen und liefert die Kennwerte
   const kennwerte = modul.bewehrung(kontext);
 
-  // Allgemeiner Haftungs-/Prüfhinweis, gilt für jedes Bauteil
+  // Abschließender Hinweis: Standardtext, sofern das Bauteil keinen eigenen
+  // mitbringt (die Stützmauer rechnet eine Vorbemessung und braucht einen
+  // anderen Schlusssatz).
   kontext.hinweise.push(
-    "Diese Ermittlung basiert auf Mindestbewehrung nach EC2/ÖNORM B 1992-1-1 und anerkannten Konstruktionsregeln. Lastabhängige Bewehrung (Biegung, Querkraft, Knicksicherheit, Erdbeben, Durchstanzen) ist NICHT enthalten und muss von einer Statikerin/einem Statiker nachgewiesen werden."
+    modul.abschlussHinweis ??
+      "Diese Ermittlung basiert auf Mindestbewehrung nach EC2/ÖNORM B 1992-1-1 und anerkannten Konstruktionsregeln. Lastabhängige Bewehrung (Biegung, Querkraft, Knicksicherheit, Erdbeben, Durchstanzen) ist NICHT enthalten und muss von einer Statikerin/einem Statiker nachgewiesen werden."
   );
 
   const positionen = kontext.s.fertig();

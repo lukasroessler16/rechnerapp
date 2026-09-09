@@ -47,6 +47,10 @@ export const sicher = (s: string) =>
     .replace(/[→⇒]/g, "->")
     .replace(/[←⇐]/g, "<-")
     .replace(/[–—]/g, "-")
+    .replace(/≥/g, ">=")
+    .replace(/≤/g, "<=")
+    .replace(/≈/g, "~")
+    .replace(/±/g, "+/-")
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, (c) => (WINANSI_ZUSATZ.includes(c) ? c : "?"));
 
 export interface Fonts {
@@ -97,7 +101,7 @@ export class Zeichner {
     y: number,
     b: number,
     h: number,
-    opts: { fuellung?: RGB; rand?: RGB; dicke?: number } = {}
+    opts: { fuellung?: RGB; rand?: RGB; dicke?: number; strich?: number[] } = {}
   ) {
     this.seite.drawRectangle({
       x: mm(x),
@@ -107,6 +111,7 @@ export class Zeichner {
       color: opts.fuellung,
       borderColor: opts.rand ?? (opts.fuellung ? undefined : SCHWARZ),
       borderWidth: opts.rand || !opts.fuellung ? (opts.dicke ?? 0.3) : undefined,
+      borderDashArray: opts.strich?.map(mm),
     });
   }
 

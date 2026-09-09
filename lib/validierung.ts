@@ -17,7 +17,8 @@
  */
 
 import { Oeffnung, Projekt, Pruefmeldung } from "./types";
-import { bauteilModul } from "./bauteile";
+import { alleMassfelder, bauteilModul } from "./bauteile";
+import { feldFaktor } from "./bauteile/typen";
 import { oeffnungsMarke } from "./bauteile/helfer";
 
 export type { Pruefmeldung } from "./types";
@@ -75,13 +76,21 @@ export function pruefeProjekt(projekt: Projekt): Pruefmeldung[] {
   const warnung = (feld: string, text: string) =>
     meldungen.push({ feld, schwere: "warnung", text });
 
-  /* ---------- Grundmaße: Grenzen aus der Modulbeschreibung ---------- */
-  for (const f of modul.masse) {
+  /* ---------- Maße und Kennwerte: Grenzen aus der Modulbeschreibung ---------- */
+  for (const f of alleMassfelder(modul)) {
     const wert = masse[f.schluessel];
+    const faktor = feldFaktor(f);
     const grenzText = (v: number) =>
-      f.einheit === "cm" ? `${Math.round(v * 100)} cm` : mText(v);
+      f.einheit === "m"
+        ? mText(v)
+        : `${Math.round(v * faktor * 100) / 100} ${f.einheit}`;
 
-    if (!isFinite(wert) || wert <= 0) {
+    if (!isFinite(wert)) {
+      fehler(f.schluessel, `${f.label}: bitte einen Wert eintragen.`);
+      continue;
+    }
+    // Felder, die 0 sein dürfen (z. B. Verkehrslast), erkennt man an min = 0
+    if (f.min > 0 && wert <= 0) {
       fehler(f.schluessel, `${f.label} muss größer als 0 sein.`);
       continue;
     }
