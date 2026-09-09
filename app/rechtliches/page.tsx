@@ -26,12 +26,16 @@ export default function Rechtliches() {
 
       <h3>1. Leistungsumfang</h3>
       <p>
-        Der Bewehrungsrechner ermittelt für Stahlbetonwände sowie Decken und
-        Bodenplatten die erforderliche Baustahlmenge und erstellt daraus drei
+        Der Bewehrungsrechner ermittelt für einzelne Stahlbetonbauteile
+        (Wände, Decken- und Bodenplatten, Stützen, Träger, Fundamente und
+        Stützmauern) die erforderliche Baustahlmenge und erstellt daraus drei
         Dokumente: einen maßstäblichen Bauplan, eine Biegeliste und eine
         Stückliste im PDF-Format. Grundlage sind die Mindestbewehrung nach
-        Eurocode 2 (EN 1992-1-1) in Verbindung mit ÖNORM B 1992-1-1 sowie
-        anerkannte Konstruktionsregeln des Stahlbetonbaus.
+        Eurocode 2 (EN 1992-1-1) in Verbindung mit dem in der Berechnung
+        gewählten Nationalen Anhang – ÖNORM B 1992-1-1 für Österreich oder
+        DIN EN 1992-1-1/NA für Deutschland – sowie anerkannte
+        Konstruktionsregeln des Stahlbetonbaus. Der gewählte Anhang ist in
+        jedem erzeugten Dokument angeschrieben.
       </p>
 
       <h3>2. Haftungsausschluss – keine statische Berechnung</h3>
@@ -46,7 +50,8 @@ export default function Rechtliches() {
       </p>
       <p>
         Alle Ergebnisse sind vor der Verwendung auf der Baustelle von einer zur
-        Tragwerksplanung befugten Person (Ziviltechniker:in, Statiker:in) zu
+        Tragwerksplanung befugten Person (Ziviltechniker:in, Prüfingenieur:in,
+        Statiker:in) zu
         prüfen und freizugeben. Die Nutzung erfolgt auf eigene Verantwortung.
         Eine Haftung für Schäden aus der ungeprüften Verwendung der Ergebnisse
         ist ausgeschlossen, soweit gesetzlich zulässig. Die Haftung für
@@ -103,7 +108,8 @@ export default function Rechtliches() {
         Diese Anwendung ist <strong>kein KI-System</strong> im Sinne der
         Verordnung (EU) 2024/1689 (KI-Verordnung / AI Act). Sämtliche Ergebnisse
         entstehen ausschließlich durch fest hinterlegte, nachvollziehbare
-        Rechenregeln nach Eurocode 2 und ÖNORM B 1992-1-1. Es findet weder
+        Rechenregeln nach Eurocode 2 und dem gewählten Nationalen Anhang. Es
+        findet weder
         maschinelles Lernen noch eine Ableitung aus Trainingsdaten statt: Bei
         gleichen Eingaben ergibt sich stets dasselbe Ergebnis, und jeder
         Rechenschritt ist normativ belegbar.

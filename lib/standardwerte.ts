@@ -3,7 +3,7 @@
  * Wiederherstellung eines gespeicherten Zustands.
  */
 import { Projekt } from "./types";
-import { cnomAusExposition } from "./normdaten";
+import { cnomAusExposition, regelwerkVon, STANDARD_REGELWERK } from "./regelwerk";
 import {
   alleMassfelder,
   bauteilModul,
@@ -22,10 +22,11 @@ export function neuesProjekt(): Projekt {
     oeffnungen: [],
     details: standardDetails(modul),
     parameter: {
+      regelwerk: STANDARD_REGELWERK,
       betonklasse: "C25/30",
       expositionsklasse: "XC2",
-      betondeckung: cnomAusExposition("XC2"),
-      stahlguete: "B550B",
+      betondeckung: cnomAusExposition(regelwerkVon(STANDARD_REGELWERK), "XC2"),
+      stahlguete: regelwerkVon(STANDARD_REGELWERK).stahlsorten[0].name,
       lagen: 2,
       matte: "auto",
       stababstand: 250,

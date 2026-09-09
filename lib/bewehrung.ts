@@ -15,6 +15,7 @@
 
 import { Ergebnis, Projekt } from "./types";
 import { BETONKLASSEN } from "./normdaten";
+import { anNorm, fykVon, regelwerkVon } from "./regelwerk";
 import { bauteilModul } from "./bauteile";
 import { Kontext } from "./bauteile/typen";
 import { Sammler } from "./bauteile/sammler";
@@ -51,11 +52,14 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
   const modul = bauteilModul(projekt.bauteil);
   const parameter = projekt.parameter;
 
+  const regelwerk = regelwerkVon(parameter.regelwerk);
   const kontext: Kontext = {
     projekt,
     s: new Sammler(),
     hinweise: [],
     beton: BETONKLASSEN.find((b) => b.name === parameter.betonklasse) ?? BETONKLASSEN[1],
+    regelwerk,
+    fyk: fykVon(regelwerk, parameter.stahlguete),
     cnom: parameter.betondeckung,
     lagen: parameter.lagen,
     abst: parameter.stababstand,
@@ -72,6 +76,11 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
       "Diese Ermittlung basiert auf Mindestbewehrung nach EC2/ÖNORM B 1992-1-1 und anerkannten Konstruktionsregeln. Lastabhängige Bewehrung (Biegung, Querkraft, Knicksicherheit, Erdbeben, Durchstanzen) ist NICHT enthalten und muss von einer Statikerin/einem Statiker nachgewiesen werden."
   );
 
+  // Die Bauteilmodule formulieren ihre Hinweise in einer Sprache (Österreich);
+  // hier werden Normbezeichnungen einmalig auf das gewählte Regelwerk
+  // umgestellt, damit kein Modul zwei Textvarianten pflegen muss.
+  const hinweise = kontext.hinweise.map((h) => anNorm(h, regelwerk));
+
   const positionen = kontext.s.fertig();
   const summe = (art: "matte" | "stab") =>
     Math.round(
@@ -86,6 +95,6 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
     mattenGewicht,
     stabstahlGewicht,
     kennwerte,
-    hinweise: kontext.hinweise,
+    hinweise,
   };
 }

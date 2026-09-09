@@ -15,7 +15,6 @@ import {
   Lagermatte,
   MATTEN_STOSS,
   VERSCHNITT_FAKTOR,
-  FYK,
   matteWaehlen,
   stabflaeche,
   uebergreifung,
@@ -253,7 +252,7 @@ export const imRaster = (strecke: number, abstand: number) =>
 /* ------------------------------------------------------------------ */
 
 /** Bemessungswert der Stahlspannung f_yd = f_yk / 1,15 [kN/cm²] */
-export const FYD = FYK / 1.15 / 10;
+export const fydVon = (fyk: number) => fyk / 1.15 / 10;
 /** Teilsicherheitsbeiwert Beton */
 const GAMMA_C = 1.5;
 /** bezogenes Moment, ab dem ohne Druckbewehrung nicht mehr bemessen wird */
@@ -286,13 +285,15 @@ export interface Bemessung {
  * @param c    Betondeckung auf der Zugseite [m]
  * @param ds   angenommener Stabdurchmesser [mm]
  * @param fck  Betondruckfestigkeit [N/mm²]
+ * @param fyk  Streckgrenze des Betonstahls [N/mm²] (regelwerksabhängig)
  */
 export function biegebemessung(
   mEd: number,
   h: number,
   c: number,
   ds: number,
-  fck: number
+  fck: number,
+  fyk: number
 ): Bemessung {
   const d = Math.max(0.02, h - c - ds / 2000);
   const fcd = fck / GAMMA_C; // [N/mm²]
@@ -304,7 +305,7 @@ export function biegebemessung(
   const xi = 1.25 * (1 - Math.sqrt(Math.max(0, 1 - 2 * begrenzt)));
   const z = Math.min(0.95 * d, d * (1 - 0.4 * xi));
   // As = M / (z · f_yd), M in kNcm, z in cm
-  const asErf = (mEd * 100) / (z * 100 * FYD);
+  const asErf = (mEd * 100) / (z * 100 * fydVon(fyk));
   return { d, z, mu, asErf: Math.round(asErf * 100) / 100, ueberlastet };
 }
 

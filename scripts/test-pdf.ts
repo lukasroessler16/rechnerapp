@@ -13,6 +13,7 @@ import { Projekt } from "../lib/types";
 
 const basis = {
   parameter: {
+    regelwerk: "at",
     betonklasse: "C25/30",
     expositionsklasse: "XC2",
     betondeckung: 30,

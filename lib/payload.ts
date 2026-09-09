@@ -19,6 +19,7 @@
 import { deflateSync, inflateSync } from "zlib";
 import { Projekt } from "./types";
 import { alleMassfelder, bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
+import { istRegelwerk, regelwerkVon, STANDARD_REGELWERK } from "./regelwerk";
 
 const CHUNK = 450;
 const MAX_CHUNKS = 40;
@@ -99,11 +100,21 @@ export function validiereProjekt(p: unknown): Projekt {
   }
 
   /* ---------- Bautechnische Parameter ---------- */
+  // Das Regelwerk bestimmt die zulässigen Betonstahlsorten; eine Sorte, die
+  // der Nationale Anhang nicht kennt, wird auf dessen Standardsorte gesetzt.
+  const regelwerkId = istRegelwerk(q.parameter?.regelwerk)
+    ? q.parameter.regelwerk
+    : STANDARD_REGELWERK;
+  const regelwerk = regelwerkVon(regelwerkId);
+  const sorte = String(q.parameter?.stahlguete ?? "");
   q.parameter = {
+    regelwerk: regelwerkId,
     betonklasse: String(q.parameter?.betonklasse ?? "C25/30"),
     expositionsklasse: String(q.parameter?.expositionsklasse ?? "XC2"),
     betondeckung: num(q.parameter?.betondeckung, 10, 80, "Betondeckung"),
-    stahlguete: q.parameter?.stahlguete === "B550B" ? "B550B" : "B550A",
+    stahlguete: regelwerk.stahlsorten.some((x) => x.name === sorte)
+      ? sorte
+      : regelwerk.stahlsorten[0].name,
     lagen: q.parameter?.lagen === 1 ? 1 : 2,
     matte: String(q.parameter?.matte ?? "auto"),
     stababstand: num(q.parameter?.stababstand ?? 250, 100, 400, "Stababstand"),

@@ -40,8 +40,14 @@ export type Masse = Record<string, number>;
  */
 export type Details = Record<string, string>;
 
-/** Bautechnische Parameter (Eurocode 2 / ÖNORM B 1992-1-1) */
+/** Bautechnische Parameter (Eurocode 2 mit Nationalem Anhang) */
 export interface Parameter {
+  /**
+   * Nationaler Anhang, nach dem gerechnet wird: "at" (ÖNORM B 1992-1-1)
+   * oder "de" (DIN EN 1992-1-1/NA). Bestimmt Betonstahlsorte, Betondeckung
+   * und einzelne Mindestbewehrungen – siehe lib/regelwerk.ts.
+   */
+  regelwerk: string;
   /** Betonfestigkeitsklasse, z. B. "C25/30" */
   betonklasse: string;
   /** Expositionsklasse, z. B. "XC2" */
@@ -51,8 +57,8 @@ export interface Parameter {
    * Wird aus der Expositionsklasse vorgeschlagen, kann überschrieben werden.
    */
   betondeckung: number;
-  /** Betonstahlsorte (Österreich: B550A/B550B) */
-  stahlguete: "B550A" | "B550B";
+  /** Betonstahlsorte des gewählten Regelwerks (AT: B550A/B, DE: B500A/B) */
+  stahlguete: string;
   /** Anzahl Bewehrungslagen (1 = mittig/einlagig, 2 = beidseitig) */
   lagen: 1 | 2;
   /**

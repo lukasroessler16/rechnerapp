@@ -11,6 +11,7 @@ import { PDFDocument } from "pdf-lib";
 import { Ergebnis, Projekt } from "../types";
 import { bauteilModul } from "../bauteile";
 import { zeichneAnsichten } from "./ansicht";
+import { anNorm, regelwerkVon } from "../regelwerk";
 import { GRAU, Zeichner, de, ladeFonts, mm, schriftkopf } from "./helpers";
 
 export async function erzeugeBauplan(
@@ -39,6 +40,7 @@ export async function erzeugeBauplan(
   z.text("BEWEHRUNGSANGABEN", ix, iy, 8.5, { fett: true });
   iy -= 6;
   const par = projekt.parameter;
+  const regelwerk = regelwerkVon(par.regelwerk);
   const k = ergebnis.kennwerte;
   zeile(`Bauteil: ${modul.name}`);
   // Die Maßangabe kann lang werden (Stützmauer). Sie wird an den Trennpunkten
@@ -54,10 +56,12 @@ export async function erzeugeBauplan(
   }
   if (puffer) zeile(puffer);
   iy -= 2;
+  zeile(`Regelwerk: ${regelwerk.normKurz}`);
+  iy -= 2;
   zeile(`Beton: ${par.betonklasse}`, true);
   zeile(`Exposition: ${par.expositionsklasse}`);
   zeile(`Betondeckung c_nom = ${par.betondeckung} mm`);
-  zeile(`Betonstahl: ${par.stahlguete}`);
+  zeile(`Betonstahl: ${par.stahlguete} (${regelwerk.betonstahlNorm})`);
   iy -= 2;
   zeile(`${k.wahlLabel}: ${k.gewaehlteMatte}`, true);
   zeile(`vorh. as = ${de(k.asVorhanden)} ${k.hauptEinheit}`);
@@ -69,8 +73,11 @@ export async function erzeugeBauplan(
 
   /* ---------- Hinweisblock ---------- */
   z.text(
-    modul.planHinweis ??
-      "HINWEIS: Mengenermittlung auf Basis Mindestbewehrung EC2/ÖNORM B 1992-1-1. Keine statische Bemessung!",
+    anNorm(
+      modul.planHinweis ??
+        "HINWEIS: Mengenermittlung auf Basis Mindestbewehrung EC2/ÖNORM B 1992-1-1. Keine statische Bemessung!",
+      regelwerk
+    ),
     14,
     16,
     6.5,

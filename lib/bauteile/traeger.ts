@@ -28,7 +28,8 @@
  */
 
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
-import { BETONKLASSEN, FYK, stabflaeche, uebergreifung } from "../normdaten";
+import { BETONKLASSEN, stabflaeche, uebergreifung } from "../normdaten";
+import { fykVon, regelwerkVon } from "../regelwerk";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
 import { abrunden, buegelLagen, verteile, zahl } from "./helfer";
 
@@ -104,6 +105,7 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
   const warnungen: string[] = [];
   const beton =
     BETONKLASSEN.find((x) => x.name === projekt.parameter.betonklasse) ?? BETONKLASSEN[1];
+  const fyk = fykVon(regelwerkVon(projekt.parameter.regelwerk), projekt.parameter.stahlguete);
 
   const ac = b * h * 10000; // [cm²]
 
@@ -122,7 +124,7 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
     // Achse der unteren Stablage
     const c = (cnom + dsw) / 1000 + ds / 2000;
     d = (h - c) * 100; // [cm]
-    asMin = Math.max((0.26 * beton.fctm * b * 100 * d) / FYK, 0.0013 * b * 100 * d);
+    asMin = Math.max((0.26 * beton.fctm * b * 100 * d) / fyk, 0.0013 * b * 100 * d);
 
     // wie viele Stäbe passen nebeneinander?
     const kern = Math.max(0.02, b - 2 * ((cnom + dsw) / 1000));
@@ -156,7 +158,7 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
   /* ---- Bügel (EC2 9.2.2) ---- */
   // ds,w ≥ ds/4 (analog zur Stütze), praktisch mindestens Ø8
   dsw = BUEGEL_DURCHMESSER.find((x) => x >= Math.max(8, ds / 4)) ?? 12;
-  const rhoMin = (0.08 * Math.sqrt(beton.fck)) / FYK;
+  const rhoMin = (0.08 * Math.sqrt(beton.fck)) / fyk;
   const aswErf = rhoMin * b * 100 * 100; // [cm²/m] Bügelquerschnitt je lfm
 
   // Schnittigkeit: quer darf der Schenkelabstand 0,75·d bzw. 60 cm nicht

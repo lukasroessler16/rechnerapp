@@ -7,6 +7,7 @@
 
 import { PDFDocument } from "pdf-lib";
 import { Projekt, Ergebnis } from "../types";
+import { regelwerkVon } from "../regelwerk";
 import {
   Zeichner,
   Fonts,
@@ -38,6 +39,7 @@ export async function erzeugeBiegeliste(
   const doc = await PDFDocument.create();
   doc.setTitle("Biegeliste – Bewehrungsrechner");
   const fonts: Fonts = await ladeFonts(doc);
+  const regelwerk = regelwerkVon(projekt.parameter.regelwerk);
 
   const staebe = ergebnis.positionen.filter((p) => p.art === "stab");
   const matten = ergebnis.positionen.filter((p) => p.art === "matte");
@@ -71,7 +73,7 @@ export async function erzeugeBiegeliste(
     z = new Zeichner(seite, fonts);
     await listenKopf(doc, z, "BIEGELISTE", projekt.firmendaten, seiteNr);
     z.text(
-      `Betonstahl ${projekt.parameter.stahlguete} · Beton ${projekt.parameter.betonklasse} · c_nom ${projekt.parameter.betondeckung} mm`,
+      `Betonstahl ${projekt.parameter.stahlguete} (${regelwerk.betonstahlNorm}) · Beton ${projekt.parameter.betonklasse} · c_nom ${projekt.parameter.betondeckung} mm · ${regelwerk.normKurz}`,
       15,
       258,
       8,

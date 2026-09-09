@@ -29,7 +29,8 @@
  */
 
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
-import { BETONKLASSEN, FYK, stabflaeche } from "../normdaten";
+import { BETONKLASSEN, stabflaeche } from "../normdaten";
+import { fykVon, regelwerkVon } from "../regelwerk";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
 import {
   AS_KONSTRUKTIV_FUNDAMENT,
@@ -117,6 +118,7 @@ export function einzelfundamentLayout(projekt: Projekt): EinzelfundamentLayout {
   const warnungen: string[] = [];
   const beton =
     BETONKLASSEN.find((x) => x.name === projekt.parameter.betonklasse) ?? BETONKLASSEN[1];
+  const fyk = fykVon(regelwerkVon(projekt.parameter.regelwerk), projekt.parameter.stahlguete);
 
   const deckung = fundamentDeckung(projekt);
   if (deckung.hinweis) warnungen.push(deckung.hinweis);
@@ -147,7 +149,7 @@ export function einzelfundamentLayout(projekt: Projekt): EinzelfundamentLayout {
     for (let runde = 0; runde < 3; runde++) {
       z = cU + dsUnter / 1000 + ds / 2000;
       d = (h - z) * 100;
-      asBiegung = Math.max((0.26 * beton.fctm * 100 * d) / FYK, 0.0013 * 100 * d);
+      asBiegung = Math.max((0.26 * beton.fctm * 100 * d) / fyk, 0.0013 * 100 * d);
       asMin = gedrungen ? AS_KONSTRUKTIV_FUNDAMENT : asBiegung;
       const wahl = stabRaster(asMin, DURCHMESSER, ABSTAENDE);
       if (wahl.ds === ds && runde > 0) break;

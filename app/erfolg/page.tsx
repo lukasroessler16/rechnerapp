@@ -118,8 +118,9 @@ function ErfolgInhalt() {
       </div>
       {fehler && <div className="warnbox">{fehler}</div>}
       <div className="haftung">
-        Alle Dokumente basieren auf einer Mengenermittlung nach EC2/ÖNORM B 1992-1-1
-        (Mindestbewehrung + Konstruktionsregeln) und sind vor der Ausführung von einer
+        Alle Dokumente basieren auf einer Mengenermittlung nach Eurocode 2 und dem in
+        der Berechnung gewählten Nationalen Anhang (Mindestbewehrung +
+        Konstruktionsregeln) und sind vor der Ausführung von einer
         tragwerksplanungsbefugten Person zu prüfen.
       </div>
       <p style={{ marginTop: 18 }}>

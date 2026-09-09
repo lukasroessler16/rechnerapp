@@ -12,7 +12,7 @@ import { berechneBewehrung } from "@/lib/bewehrung";
 export const metadata: Metadata = {
   title: "Beispiele & Musterdokumente – Rösch Bewehrungsrechner",
   description:
-    "Bauplan, Biegeliste und Stückliste als Muster ansehen, dazu die fachlichen Grundlagen der Berechnung nach EC2/ÖNORM B 1992-1-1.",
+    "Bauplan, Biegeliste und Stückliste als Muster ansehen, dazu die fachlichen Grundlagen der Berechnung nach Eurocode 2 (ÖNORM B 1992-1-1 bzw. DIN EN 1992-1-1/NA).",
 };
 
 /**
@@ -153,7 +153,8 @@ export default function Beispiele() {
           <div>
             <p>
               Ermittelt wird die Mindestbewehrung nach Eurocode 2 (EN 1992-1-1)
-              in Verbindung mit ÖNORM B 1992-1-1, ergänzt um anerkannte
+              in Verbindung mit dem gewählten Nationalen Anhang – ÖNORM
+              B 1992-1-1 oder DIN EN 1992-1-1/NA –, ergänzt um anerkannte
               Konstruktionsregeln des Stahlbetonbaus: Anschlussbewehrung im
               gewählten Raster, Eckwinkel, Steckbügel an freien Rändern, Sturz-,
               Brüstungs- und Laibungszulagen sowie Schrägstäbe an den

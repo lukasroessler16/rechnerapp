@@ -152,8 +152,9 @@ export const wand: Bauteilmodul = {
     const dickeCm = masse.dicke * 100;
     const ac = dickeCm * 100; // Ac je laufendem Meter [cm²/m]
 
-    /* ---- 1) Mindestbewehrung EC2 9.6 ---- */
-    const asVminGesamt = 0.002 * ac;
+    /* ---- 1) Mindestbewehrung EC2 9.6, Faktor je Nationalem Anhang ---- */
+    // Österreich (Empfehlung des EC2): 0,002 · Ac · Deutschland: 0,0015 · Ac
+    const asVminGesamt = k.regelwerk.wandVertikalFaktor * ac;
     const asHminGesamt = Math.max(0.25 * asVminGesamt, 0.001 * ac);
     const asMinHaupt = asVminGesamt / k.lagen;
     const asMinQuer = asHminGesamt / k.lagen;
@@ -244,6 +245,7 @@ export const wand: Bauteilmodul = {
       );
     if (masse.dicke >= 0.2 && k.lagen === 1)
       k.hinweise.push("Hinweis: Ab d ≥ 20 cm ist beidseitige (zweilagige) Bewehrung üblich.");
+    k.hinweise.push(k.regelwerk.wandHinweis);
 
     return {
       ac,

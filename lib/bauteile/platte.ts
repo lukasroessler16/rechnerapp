@@ -12,7 +12,7 @@
  */
 
 import { Kennwerte, Projekt } from "../types";
-import { FYK, uebergreifung } from "../normdaten";
+import { uebergreifung } from "../normdaten";
 import { Ansicht, Bauteilmodul, Detailfeld, Kontext } from "./typen";
 import {
   anschlusseisen,
@@ -140,7 +140,7 @@ function baue(art: PlattenArt): Bauteilmodul {
       /* ---- 1) Mindestbewehrung EC2 9.2.1.1 ---- */
       const nutzhoehe = dickeCm - k.cnom / 10 - 0.4;
       const asMin = Math.max(
-        (0.26 * k.beton.fctm * 100 * nutzhoehe) / FYK,
+        (0.26 * k.beton.fctm * 100 * nutzhoehe) / k.fyk,
         0.0013 * 100 * nutzhoehe
       );
       const asMinHaupt = asMin;

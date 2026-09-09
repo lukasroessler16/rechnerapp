@@ -20,6 +20,7 @@
 
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
 import { Betonklasse } from "../normdaten";
+import { Regelwerk } from "../regelwerk";
 import { Sammler } from "./sammler";
 
 /* ------------------------------------------------------------------ */
@@ -176,6 +177,10 @@ export interface Kontext {
   hinweise: string[];
   /** aufgelöste Betonklasse */
   beton: Betonklasse;
+  /** gewählter Nationaler Anhang */
+  regelwerk: Regelwerk;
+  /** Streckgrenze des gewählten Betonstahls [N/mm²] */
+  fyk: number;
   /** Nennmaß der Betondeckung [mm] */
   cnom: number;
   /** Bewehrungslagen (1 oder 2) */

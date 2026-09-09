@@ -74,8 +74,8 @@ export async function sendeDokumentenMail(d: DokumentenMail): Promise<boolean> {
 
   <p style="font-size:12px;color:#5a6472">
     <strong>Haftungshinweis:</strong> Die Dokumente beruhen auf einer
-    Mengenermittlung nach EC2/ÖNORM B 1992-1-1 (Mindestbewehrung und
-    Konstruktionsregeln) und ersetzen keine statische Berechnung. Sie sind vor
+    Mengenermittlung nach Eurocode 2 und dem in der Berechnung gewählten
+    Nationalen Anhang (Mindestbewehrung und Konstruktionsregeln) und ersetzen keine statische Berechnung. Sie sind vor
     der Ausführung von einer zur Tragwerksplanung befugten Person zu prüfen und
     freizugeben.
   </p>

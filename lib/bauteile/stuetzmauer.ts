@@ -28,6 +28,7 @@
 
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
 import { BETONKLASSEN, stabflaeche, uebergreifung } from "../normdaten";
+import { fykVon, regelwerkVon } from "../regelwerk";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
 import {
   Bemessung,
@@ -113,6 +114,8 @@ export interface StuetzmauerLayout {
   delta: number;
   /** Erddruck oder Mindestbewehrung maßgebend? */
   erddruckMassgebend: boolean;
+  /** Faktor der vertikalen Wand-Mindestbewehrung des Regelwerks */
+  wandFaktor: number;
   /** gewählte Bewehrung: Durchmesser [mm] und Abstand [m] */
   wandErd: { ds: number; s: number; as: number; asErf: number };
   wandLuft: { ds: number; s: number; as: number };
@@ -141,6 +144,8 @@ export function stuetzmauerLayout(projekt: Projekt): StuetzmauerLayout {
 
   const beton =
     BETONKLASSEN.find((x) => x.name === projekt.parameter.betonklasse) ?? BETONKLASSEN[1];
+  const regelwerk = regelwerkVon(projekt.parameter.regelwerk);
+  const fyk = fykVon(regelwerk, projekt.parameter.stahlguete);
   const deckung = fundamentDeckung(projekt);
   if (deckung.hinweis) warnungen.push(deckung.hinweis);
   const { cU, cO } = deckung;
@@ -209,9 +214,9 @@ export function stuetzmauerLayout(projekt: Projekt): StuetzmauerLayout {
   /* ---- Bemessung ---- */
   // Für die Wandscheibe gilt die Deckung der Expositionsklasse, für das
   // Fundament unten die erhöhte Fundamentdeckung.
-  const bemWand = biegebemessung(mWand, dw, cO, 14, beton.fck);
-  const bemFerse = biegebemessung(mFerse, hf, cO, 12, beton.fck);
-  const bemZehe = biegebemessung(mZehe, hf, cU, 12, beton.fck);
+  const bemWand = biegebemessung(mWand, dw, cO, 14, beton.fck, fyk);
+  const bemFerse = biegebemessung(mFerse, hf, cO, 12, beton.fck, fyk);
+  const bemZehe = biegebemessung(mZehe, hf, cU, 12, beton.fck, fyk);
   for (const [name, b] of [
     ["Wandscheibe", bemWand],
     ["Ferse", bemFerse],
@@ -228,7 +233,8 @@ export function stuetzmauerLayout(projekt: Projekt): StuetzmauerLayout {
   // Wandscheibe wie eine Wand nach EC2 9.6: 0,002·Ac gesamt, je Seite die
   // Hälfte; horizontal max(25 % der Vertikalbewehrung; 0,001·Ac).
   const acWand = dw * 100 * 100; // [cm²/m]
-  const asWandMin = 0.001 * acWand;
+  // je Seite die Hälfte der vertikalen Mindestbewehrung des Anhangs
+  const asWandMin = (regelwerk.wandVertikalFaktor / 2) * acWand;
 
   const wandErfErd = Math.max(bemWand.asErf, asWandMin);
   const wErd = stabRaster(wandErfErd, DURCHMESSER, ABSTAENDE);
@@ -265,6 +271,7 @@ export function stuetzmauerLayout(projekt: Projekt): StuetzmauerLayout {
     etaGleit,
     delta: Math.round(delta * 10) / 10,
     erddruckMassgebend: bemWand.asErf > asWandMin,
+    wandFaktor: regelwerk.wandVertikalFaktor,
     wandErd: { ...wErd, asErf: Math.round(wandErfErd * 100) / 100 },
     wandLuft: wLuft,
     wandHoriz: wHoriz,
@@ -689,10 +696,10 @@ export const stuetzmauer: Bauteilmodul = {
         ? `Am Wandfuß ist der Erddruck maßgebend: erforderlich ${zahl(
             w.bemWand.asErf
           )} cm²/m gegenüber ${zahl(
-            0.001 * w.dw * 10000
+            (w.wandFaktor / 2) * w.dw * 10000
           )} cm²/m Mindestbewehrung je Seite nach EC2 9.6.`
         : `Am Wandfuß ist die Mindestbewehrung nach EC2 9.6 maßgebend (${zahl(
-            0.001 * w.dw * 10000
+            (w.wandFaktor / 2) * w.dw * 10000
           )} cm²/m je Seite gegenüber ${zahl(
             w.bemWand.asErf
           )} cm²/m aus dem Erddruck). Bei dieser Mauerhöhe bleibt der Erddruck also unter dem konstruktiven Mindestwert.`

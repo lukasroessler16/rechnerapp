@@ -1,132 +1,70 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import SkizzeSVG from "@/components/SkizzeSVG";
 import { LogoGestapelt } from "@/components/Logo";
-import { MUSTERPROJEKT } from "@/lib/muster";
-import { berechneBewehrung } from "@/lib/bewehrung";
+import { BAUTEILE } from "@/lib/bauteile";
 
 export const metadata: Metadata = {
-  title: "Rösch Bewehrungsrechner – Baustahlmenge für Wände und Decken",
+  title: "Rösch Bewehrungsrechner – Baustahlmenge für Betonbauteile",
   description:
-    "In wenigen Minuten zur Baustahlmenge: Bauplan, Biegeliste und Stückliste als PDF. Nach EC2/ÖNORM B 1992-1-1. Ohne Registrierung, Einmalzahlung pro Berechnung.",
+    "Bauplan, Biegeliste und Stückliste für Betonbauteile als PDF. Nach Eurocode 2 mit österreichischem oder deutschem Nationalem Anhang. Ohne Registrierung, Einmalzahlung pro Berechnung.",
 };
 
 const PREIS = process.env.NEXT_PUBLIC_PREIS_EUR ?? "29";
 
 /**
- * Startseite: bewusst schlank gehalten – Marke, Nutzenversprechen, eine echte
- * Live-Skizze, der Ablauf in drei Schritten und der Preis. Alles Vertiefende
- * (Musterdokumente, fachliche Grundlagen, FAQ) liegt auf /beispiele.
+ * Startseite: bewusst nur Begrüßung und Kurzvorstellung.
+ *
+ * Alles Vertiefende – Musterdokumente, fachliche Grundlagen, FAQ – liegt auf
+ * /beispiele; die Rechtstexte auf ihren eigenen Seiten. Diese Seite muss nur
+ * zwei Fragen beantworten: Was ist das, und wo geht es los.
  */
 export default function Startseite() {
-  const ergebnis = berechneBewehrung(MUSTERPROJEKT);
-
   return (
-    <main className="start">
-      {/* ---------------- Aufmacher ---------------- */}
-      <section className="start-hero">
-        <div>
-          <LogoGestapelt groesse={64} zusatz="BEWEHRUNGSRECHNER" />
+    <main className="start start-schlank">
+      <section className="willkommen">
+        <LogoGestapelt groesse={64} zusatz="BEWEHRUNGSRECHNER" />
 
-          <h2>Baustahlmenge berechnen – in Minuten statt in Stunden</h2>
-          <p className="start-lead">
-            Maße eingeben, Öffnungen setzen, fertig. Sie erhalten den
-            maßstäblichen Bauplan, die Biegeliste für den Baustahlhändler und
-            die Stückliste – als druckfertige PDFs mit Ihrem Logo im
-            Schriftkopf.
-          </p>
-          <div className="start-knoepfe">
-            <Link href="/rechner" className="knopf primaer gross">
-              Berechnung starten
-            </Link>
-            <Link href="/beispiele" className="knopf gross">
-              Muster ansehen
-            </Link>
-          </div>
-          <p className="start-klein">
-            Kostenlos bis zur Ergebnisvorschau · keine Registrierung ·{" "}
-            {PREIS} € einmalig je Berechnung
-          </p>
-        </div>
+        <h2>Willkommen</h2>
+        <p className="willkommen-lead">
+          Der Rösch Bewehrungsrechner ermittelt die Baustahlmenge für einzelne
+          Betonbauteile und liefert die Papiere gleich mit: einen maßstäblichen{" "}
+          <strong>Bauplan</strong>, die <strong>Biegeliste</strong> für den
+          Baustahlhändler und die <strong>Stückliste</strong> – als druckfertige
+          PDFs mit Ihrem Logo im Schriftkopf.
+        </p>
+        <p className="willkommen-lead">
+          Sie geben die Maße ein, wählen die Anschlüsse und die bautechnischen
+          Vorgaben; gerechnet wird nach Eurocode 2, wahlweise mit dem
+          österreichischen oder dem deutschen Nationalen Anhang. Bis zur
+          Ergebnisvorschau kostet das nichts, eine Anmeldung braucht es nicht.
+        </p>
 
-        <figure className="start-skizze">
-          <figcaption className="start-skizze-kopf">
-            Live-Skizze · so sieht die Eingabe aus
-          </figcaption>
-          <SkizzeSVG projekt={MUSTERPROJEKT} />
-          <div className="start-skizze-fuss">
-            Wand 8,00 × 2,75 × 0,25 m mit Fenster und Tür →{" "}
-            <strong>{ergebnis.gesamtgewicht.toLocaleString("de-AT")} kg</strong>{" "}
-            Baustahl, Matte {ergebnis.kennwerte.gewaehlteMatte}
-          </div>
-        </figure>
-      </section>
-
-      {/* ---------------- Ablauf ---------------- */}
-      <section className="start-block">
-        <h3>In drei Schritten zum fertigen Plan</h3>
-        <div className="start-schritte">
-          <div className="start-schritt">
-            <span className="nummer">1</span>
-            <h4>Bauteil beschreiben</h4>
-            <p>
-              Wand oder Decke, Grundmaße, Öffnungen. Die Skizze wächst
-              maßstäblich mit jeder Eingabe mit.
-            </p>
-          </div>
-          <div className="start-schritt">
-            <span className="nummer">2</span>
-            <h4>Details wählen</h4>
-            <p>
-              Anschlüsse mit Vorschaubild, dazu Betonklasse, Expositionsklasse
-              und Betondeckung – sinnvoll vorbelegt.
-            </p>
-          </div>
-          <div className="start-schritt">
-            <span className="nummer">3</span>
-            <h4>Dokumente erhalten</h4>
-            <p>
-              Drei PDFs zum Download, dazu der dauerhaft gültige Link per
-              E-Mail.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Preis + Verweis auf Muster ---------------- */}
-      <section className="start-preis">
-        <div>
-          <h3>Ein Preis, keine Überraschungen</h3>
-          <p>
-            Der ganze Fragebogen samt Ergebnisvorschau mit Gesamtgewicht ist
-            kostenlos. Bezahlt wird erst, wenn Sie die Dokumente wirklich
-            brauchen – und Sie können vorher in die Muster schauen.
-          </p>
-          <p className="start-preis-links">
-            <Link href="/beispiele">Musterdokumente und fachliche Grundlagen →</Link>
-          </p>
-        </div>
-        <div className="start-preisbox">
-          <div className="start-betrag">{PREIS} €</div>
-          <div className="start-betrag-text">einmalig je Berechnung</div>
-          <Link href="/rechner" className="knopf primaer">
-            Jetzt ausprobieren
+        <div className="willkommen-knoepfe">
+          <Link href="/rechner" className="knopf primaer gross">
+            Berechnung starten
           </Link>
-          <div className="start-klein">
-            Karte, Apple&nbsp;Pay, EPS · kein Konto nötig
-          </div>
+          <Link href="/beispiele" className="knopf gross">
+            Beispiele &amp; Erklärungen
+          </Link>
         </div>
+
+        <p className="willkommen-klein">
+          {BAUTEILE.length} Bauteiltypen · {PREIS} € einmalig je Berechnung ·
+          keine Registrierung
+        </p>
       </section>
 
-      {/* ---------------- Fachlicher Hinweis, kompakt ---------------- */}
-      <section className="start-hinweis">
+      <section className="willkommen-recht">
         <p>
-          <strong>Fachliche Grundlage:</strong> Mindestbewehrung nach Eurocode 2
-          und ÖNORM B 1992-1-1 samt anerkannter Konstruktionsregeln. Eine
-          statische Bemessung ersetzt das Werkzeug nicht – die Ergebnisse
-          gehören vor der Ausführung von einer zur Tragwerksplanung befugten
-          Person geprüft und freigegeben.{" "}
-          <Link href="/beispiele">Was genau berechnet wird →</Link>
+          <strong>Bitte beachten:</strong> Das Werkzeug ermittelt Mengen nach
+          Mindestbewehrung und anerkannten Konstruktionsregeln. Es ersetzt keine
+          statische Berechnung – die Ergebnisse sind vor der Ausführung von
+          einer zur Tragwerksplanung befugten Person zu prüfen und freizugeben.
+        </p>
+        <p className="willkommen-rechtlinks">
+          <Link href="/rechtliches">Nutzungsbedingungen &amp; Haftung</Link>
+          <Link href="/impressum">Impressum</Link>
+          <Link href="/datenschutz">Datenschutz</Link>
         </p>
       </section>
     </main>

@@ -32,7 +32,8 @@
  */
 
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
-import { BETONKLASSEN, FYK, stabflaeche, uebergreifung } from "../normdaten";
+import { BETONKLASSEN, stabflaeche, uebergreifung } from "../normdaten";
+import { fykVon, regelwerkVon } from "../regelwerk";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
 import {
   AS_KONSTRUKTIV_FUNDAMENT,
@@ -119,6 +120,7 @@ export function fundamentLayout(projekt: Projekt): FundamentLayout {
   const warnungen: string[] = [];
   const beton =
     BETONKLASSEN.find((x) => x.name === projekt.parameter.betonklasse) ?? BETONKLASSEN[1];
+  const fyk = fykVon(regelwerkVon(projekt.parameter.regelwerk), projekt.parameter.stahlguete);
 
   /* ---- Betondeckung: unten/seitlich gilt die Fundament-Mindestdeckung ---- */
   const deckung = fundamentDeckung(projekt);
@@ -145,7 +147,7 @@ export function fundamentLayout(projekt: Projekt): FundamentLayout {
 
   for (let runde = 0; runde < 3; runde++) {
     d = (h - cU) * 100 - dsQ / 20; // [cm]
-    asBiegung = Math.max((0.26 * beton.fctm * 100 * d) / FYK, 0.0013 * 100 * d);
+    asBiegung = Math.max((0.26 * beton.fctm * 100 * d) / fyk, 0.0013 * 100 * d);
     asQuerMin = biegebeansprucht ? asBiegung : AS_KONSTRUKTIV_FUNDAMENT;
 
     // wirtschaftlichste Kombination aus Durchmesser und Abstand

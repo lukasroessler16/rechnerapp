@@ -23,6 +23,7 @@ export const MUSTERPROJEKT: Projekt = {
     rechts: "ecke",
   },
   parameter: {
+    regelwerk: "at",
     betonklasse: "C25/30",
     expositionsklasse: "XC2",
     betondeckung: 30,

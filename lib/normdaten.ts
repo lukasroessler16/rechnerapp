@@ -30,48 +30,20 @@ export const BETONKLASSEN: Betonklasse[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/* Expositionsklassen und Betondeckung                                 */
+/* Betondeckung und Betonstahlsorte                                    */
 /* ------------------------------------------------------------------ */
 
-export interface Expositionsklasse {
-  name: string;
-  beschreibung: string;
-  /** Mindestbetondeckung c_min,dur [mm] (Standard-Bauteilklasse S4) */
-  cminDur: number;
-  /** empfohlene Mindest-Betonklasse */
-  minBeton: string;
-}
-
 /**
- * c_min,dur nach ÖNORM B 1992-1-1 (Bauteilklasse S4).
- * c_nom = c_min + Δc_dev, mit Δc_dev = 10 mm (Standard-Vorhaltemaß).
+ * Expositionsklassen, Vorhaltemaß, Betonstahlsorten und die Streckgrenze
+ * hängen vom Nationalen Anhang ab und stehen deshalb in lib/regelwerk.ts.
+ * Von dort kommen auch cnomAusExposition() und fykVon().
  */
-export const EXPOSITIONSKLASSEN: Expositionsklasse[] = [
-  { name: "XC1", beschreibung: "trocken / ständig nass (Innenräume)", cminDur: 15, minBeton: "C20/25" },
-  { name: "XC2", beschreibung: "nass, selten trocken (Fundamente)", cminDur: 20, minBeton: "C20/25" },
-  { name: "XC3", beschreibung: "mäßige Feuchte (überdachte Außenbauteile)", cminDur: 25, minBeton: "C25/30" },
-  { name: "XC4", beschreibung: "wechselnd nass/trocken (Außenbauteile, bewittert)", cminDur: 25, minBeton: "C25/30" },
-  { name: "XD1", beschreibung: "mäßige Feuchte, Chloride (Sprühnebel)", cminDur: 30, minBeton: "C30/37" },
-  { name: "XD2", beschreibung: "nass, selten trocken, Chloride", cminDur: 35, minBeton: "C30/37" },
-  { name: "XD3", beschreibung: "wechselnd nass/trocken, Chloride (Spritzwasser)", cminDur: 40, minBeton: "C35/45" },
-  { name: "XF1", beschreibung: "Frost ohne Taumittel, mäßig wassergesättigt", cminDur: 25, minBeton: "C25/30" },
-];
-
-/** Vorhaltemaß Δc_dev [mm] */
-export const DELTA_C_DEV = 10;
-
-/** Nennmaß der Betondeckung aus Expositionsklasse [mm] */
-export function cnomAusExposition(expo: string): number {
-  const e = EXPOSITIONSKLASSEN.find((x) => x.name === expo);
-  return (e ? e.cminDur : 25) + DELTA_C_DEV;
-}
+export type { Expositionsklasse } from "./regelwerk";
+export { cnomAusExposition, fykVon } from "./regelwerk";
 
 /* ------------------------------------------------------------------ */
 /* Betonstahl                                                          */
 /* ------------------------------------------------------------------ */
-
-/** Streckgrenze Betonstahl B550 [N/mm²] (Österreich) */
-export const FYK = 550;
 
 /** Dichte Stahl [kg/m³] */
 export const DICHTE_STAHL = 7850;

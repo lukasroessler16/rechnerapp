@@ -11,6 +11,12 @@ import { projektZuMetadata, metadataZuProjekt } from "../lib/payload";
 import { pruefeProjekt } from "../lib/validierung";
 import { BAUTEILE, bauteilModul, standardDetails, standardMasse } from "../lib/bauteile";
 import { Projekt } from "../lib/types";
+import {
+  DEUTSCHLAND,
+  OESTERREICH,
+  cnomAusExposition,
+  fykVon,
+} from "../lib/regelwerk";
 
 const firmendaten = {
   firma: "Test GmbH",
@@ -20,6 +26,7 @@ const firmendaten = {
   datum: "2026-08-16",
 };
 const parameter = {
+  regelwerk: "at",
   betonklasse: "C25/30",
   expositionsklasse: "XC2",
   betondeckung: 30,
@@ -519,6 +526,102 @@ for (const modul of BAUTEILE) {
       `${String(erg.gesamtgewicht).padStart(7)} kg · ${ansichten.length} Ansicht(en) · ${modul.masseText(p)}`
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* 9b) Regelwerk: der deutsche Anhang muss wirklich anders rechnen      */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Regelwerk AT / DE ===");
+
+// Betondeckung: Δc_dev 10 mm (AT) gegen 15 mm (DE), XC1 in DE nur 10 mm
+if (cnomAusExposition(OESTERREICH, "XC2") !== 30)
+  throw new Error("AT/XC2: c_nom müsste 20 + 10 = 30 mm sein.");
+if (cnomAusExposition(DEUTSCHLAND, "XC2") !== 35)
+  throw new Error("DE/XC2: c_nom müsste 20 + 15 = 35 mm sein.");
+if (cnomAusExposition(DEUTSCHLAND, "XC1") !== 20)
+  throw new Error("DE/XC1: c_nom müsste 10 + 10 = 20 mm sein.");
+
+// Streckgrenze aus der Sorte des jeweiligen Anhangs
+if (fykVon(OESTERREICH, "B550B") !== 550 || fykVon(DEUTSCHLAND, "B500B") !== 500)
+  throw new Error("f_yk wird nicht aus dem Regelwerk abgeleitet.");
+
+/** Dasselbe Bauteil, einmal nach ÖNORM, einmal nach DIN gerechnet */
+const nachDIN = (p: Projekt): Projekt => ({
+  ...p,
+  parameter: {
+    ...p.parameter,
+    regelwerk: "de",
+    stahlguete: "B500B",
+    betondeckung: cnomAusExposition(DEUTSCHLAND, p.parameter.expositionsklasse),
+  },
+});
+
+// Wand: 0,0015·Ac statt 0,002·Ac → weniger Stahl, obwohl der Rest gleich bleibt
+const wandAT = berechneBewehrung(wand);
+const wandDE = berechneBewehrung(nachDIN(wand));
+if (!(wandDE.kennwerte.asMinHaupt < wandAT.kennwerte.asMinHaupt))
+  throw new Error(
+    `Wand DE müsste weniger Mindestbewehrung fordern als AT (${wandDE.kennwerte.asMinHaupt} vs. ${wandAT.kennwerte.asMinHaupt} cm²/m).`
+  );
+const erwarteteWandDE = Math.round(0.0015 * 25 * 100 * 100) / 100 / 2; // je Seite, cm²/m
+if (Math.abs(wandDE.kennwerte.asMinHaupt - erwarteteWandDE) > 0.02)
+  throw new Error(
+    `Wand DE: As,vmin je Seite müsste ${erwarteteWandDE} cm²/m sein, ist ${wandDE.kennwerte.asMinHaupt}.`
+  );
+console.log(
+  `Wand   As,min je Seite: AT ${wandAT.kennwerte.asMinHaupt} / DE ${wandDE.kennwerte.asMinHaupt} cm²/m`
+);
+
+// Platte: As,min ∝ 1/f_yk → DE fordert wegen B500 rund 10 % mehr
+const deckeAT = berechneBewehrung(decke);
+const deckeDE = berechneBewehrung(nachDIN(decke));
+if (!(deckeDE.kennwerte.asMinHaupt > deckeAT.kennwerte.asMinHaupt))
+  throw new Error("Deckenplatte DE müsste wegen B500 mehr Mindestbewehrung fordern als AT.");
+console.log(
+  `Decke  As,min: AT ${deckeAT.kennwerte.asMinHaupt} / DE ${deckeDE.kennwerte.asMinHaupt} cm²/m` +
+    ` (c_nom ${wand.parameter.betondeckung} / ${nachDIN(wand).parameter.betondeckung} mm)`
+);
+
+// Normzitate müssen in den Hinweisen mitübersetzt sein
+if (wandDE.hinweise.some((h) => h.includes("ÖNORM")))
+  throw new Error("Im DIN-Modus darf in den Hinweisen keine ÖNORM mehr stehen.");
+if (!wandDE.hinweise.some((h) => h.includes("DIN EN 1992-1-1/NA")))
+  throw new Error("Im DIN-Modus fehlt der Verweis auf DIN EN 1992-1-1/NA.");
+
+// Jedes Bauteil muss auch im DIN-Modus rechnen und zeichnen
+for (const modul of BAUTEILE) {
+  const p = nachDIN({
+    ...wand,
+    bauteil: modul.id,
+    masse: standardMasse(modul),
+    details: standardDetails(modul),
+    oeffnungen: [],
+  });
+  const erg = berechneBewehrung(p);
+  if (erg.positionen.length === 0) throw new Error(`${modul.id} (DE): keine Positionen.`);
+  if (modul.zeichnung(p).length === 0) throw new Error(`${modul.id} (DE): keine Ansicht.`);
+  if (erg.hinweise.some((h) => h.includes("ÖNORM")))
+    throw new Error(`${modul.id} (DE): Hinweis nennt noch die ÖNORM.`);
+}
+console.log("Alle Bauteile rechnen auch im DIN-Modus");
+
+// Serverseitig darf keine Mischung aus zwei Anhängen durchkommen
+const gemischt = metadataZuProjekt(
+  projektZuMetadata({
+    ...wand,
+    parameter: { ...wand.parameter, regelwerk: "de", stahlguete: "B550B" },
+  })
+);
+if (gemischt.parameter.stahlguete !== "B500A" && gemischt.parameter.stahlguete !== "B500B")
+  throw new Error(
+    `Eine im DIN-Modus unzulässige Stahlsorte muss ersetzt werden, blieb aber ${gemischt.parameter.stahlguete}.`
+  );
+const unsinn = metadataZuProjekt(
+  projektZuMetadata({ ...wand, parameter: { ...wand.parameter, regelwerk: "ch" } })
+);
+if (unsinn.parameter.regelwerk !== "at")
+  throw new Error("Ein unbekanntes Regelwerk muss auf den Standard zurückfallen.");
+console.log("Serverseitige Prüfung des Regelwerks OK");
 
 /* ------------------------------------------------------------------ */
 /* 10) Payload-Roundtrip für jedes Bauteil                             */

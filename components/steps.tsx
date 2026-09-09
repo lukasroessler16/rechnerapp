@@ -18,15 +18,12 @@ import {
   standardMasse,
 } from "@/lib/bauteile";
 import { Massfeld, feldFaktor } from "@/lib/bauteile/typen";
-import {
-  BETONKLASSEN,
-  EXPOSITIONSKLASSEN,
-  LAGERMATTEN,
-  cnomAusExposition,
-} from "@/lib/normdaten";
+import { BETONKLASSEN, LAGERMATTEN } from "@/lib/normdaten";
+import { REGELWERKE, cnomAusExposition, regelwerkVon } from "@/lib/regelwerk";
 import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
 import { Pruefmeldung, fehlerZu, oeffnungsMarke, pruefeProjekt } from "@/lib/validierung";
 import { Detailbild } from "./DetailBilder";
+import { Erklaerung } from "./Erklaerung";
 
 export type Setzer = (fn: (p: Projekt) => Projekt) => void;
 interface StepProps {
@@ -50,6 +47,7 @@ function ZahlFeld({
   onChange,
   hinweis,
   fehler,
+  erklaerung,
 }: {
   label: string;
   einheit: string;
@@ -61,6 +59,8 @@ function ZahlFeld({
   hinweis?: string;
   /** Meldung aus der Plausibilitätsprüfung */
   fehler?: string;
+  /** Schlüssel eines Erklärungstextes, falls der Begriff erklärt werden soll */
+  erklaerung?: string;
 }) {
   /**
    * Eigener Textzustand: Nur so lässt sich das Feld mit der Rücktaste ganz
@@ -99,6 +99,7 @@ function ZahlFeld({
     <div className="feld">
       <label>
         {label} <span className="einheit">[{einheit}]</span>
+        {erklaerung && <Erklaerung thema={erklaerung} />}
       </label>
       <input
         type="number"
@@ -462,29 +463,87 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
   /** Live-Rückmeldung: was ergibt sich aus der aktuellen Auswahl? */
   const kennwerte = useMemo(() => berechneBewehrung(projekt).kennwerte, [projekt]);
 
+  /** Nationaler Anhang: bestimmt Stahlsorten, Deckung und Mindestbewehrung */
+  const regelwerk = regelwerkVon(par.regelwerk);
+
   /** Normprüfung: erfüllt die Betonklasse die Expositionsklasse? */
-  const expo = EXPOSITIONSKLASSEN.find((x) => x.name === par.expositionsklasse);
+  const expo = regelwerk.expositionsklassen.find((x) => x.name === par.expositionsklasse);
   const iGewaehlt = BETONKLASSEN.findIndex((b) => b.name === par.betonklasse);
   const iMindest = BETONKLASSEN.findIndex((b) => b.name === expo?.minBeton);
   const betonZuNiedrig = iMindest >= 0 && iGewaehlt >= 0 && iGewaehlt < iMindest;
 
-  const vorschlagDeckung = cnomAusExposition(par.expositionsklasse);
+  const vorschlagDeckung = cnomAusExposition(regelwerk, par.expositionsklasse);
   const deckungAbweichend = par.betondeckung !== vorschlagDeckung;
+
+  /**
+   * Regelwerkswechsel: Stahlsorte und Expositionsklasse müssen im neuen Anhang
+   * überhaupt existieren, und die Betondeckung folgt dessen Werten – sonst
+   * würde stillschweigend mit einer Mischung aus zwei Normen gerechnet.
+   */
+  const wechsleRegelwerk = (id: string) => {
+    const neu = regelwerkVon(id);
+    const sorte =
+      neu.stahlsorten.find((s) => s.name.slice(-1) === par.stahlguete.slice(-1)) ??
+      neu.stahlsorten[0];
+    const klasse = neu.expositionsklassen.some((x) => x.name === par.expositionsklasse)
+      ? par.expositionsklasse
+      : neu.expositionsklassen[0].name;
+    setPar({
+      regelwerk: neu.id,
+      stahlguete: sorte.name,
+      expositionsklasse: klasse,
+      betondeckung: cnomAusExposition(neu, klasse),
+    });
+  };
 
   return (
     <>
       <h2 className="schritt-titel">{nr} · Bautechnische Parameter</h2>
       <p className="schritt-hilfe">
-        Vorgaben nach EC2/ÖNORM B 1992-1-1. Alle Felder sind sinnvoll vorbelegt –
-        Sie müssen nur ändern, was von Ihrem Projekt abweicht.
+        Vorgaben nach {regelwerk.normKurz}. Alle Felder sind sinnvoll vorbelegt –
+        Sie müssen nur ändern, was von Ihrem Projekt abweicht. Das Fragezeichen
+        neben einem Feld erklärt den Begriff.
       </p>
+
+      {/* ---------------- Gruppe 0: Regelwerk ---------------- */}
+      <section className="gruppe">
+        <h3 className="gruppe-titel">Regelwerk</h3>
+        <div className="feld">
+          <label>
+            Nationaler Anhang zum Eurocode 2
+            <Erklaerung thema="regelwerk" />
+          </label>
+          <div className="regelwerk-wahl">
+            {REGELWERKE.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className={`regelwerk-knopf${r.id === regelwerk.id ? " aktiv" : ""}`}
+                aria-pressed={r.id === regelwerk.id}
+                onClick={() => wechsleRegelwerk(r.id)}
+              >
+                <span className="rw-land">{r.land}</span>
+                <span className="rw-norm">{r.normKurz}</span>
+              </button>
+            ))}
+          </div>
+          <div className="hinweis">
+            Bestimmt Betonstahl ({regelwerk.stahlsorten.map((s) => s.name).join(" / ")},{" "}
+            {regelwerk.betonstahlNorm}), Betondeckung und Mindestbewehrung. Ein Wechsel
+            ändert die Ergebnisse.
+          </div>
+        </div>
+      </section>
 
       {/* ---------------- Gruppe 1: Beton ---------------- */}
       <section className="gruppe">
         <h3 className="gruppe-titel">Beton</h3>
 
         <div className="feld">
-          <label>Expositionsklasse (Umgebungsbedingungen)</label>
+          <label>
+            Expositionsklasse (Umgebungsbedingungen)
+            <Erklaerung thema="expositionsklasse" />
+          </label>
           <select
             value={par.expositionsklasse}
             onChange={(e) => {
@@ -492,11 +551,13 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
               // Betondeckung automatisch mitführen, solange sie dem Vorschlag folgt
               setPar({
                 expositionsklasse: wahl,
-                betondeckung: deckungAbweichend ? par.betondeckung : cnomAusExposition(wahl),
+                betondeckung: deckungAbweichend
+                  ? par.betondeckung
+                  : cnomAusExposition(regelwerk, wahl),
               });
             }}
           >
-            {EXPOSITIONSKLASSEN.map((x) => (
+            {regelwerk.expositionsklassen.map((x) => (
               <option key={x.name} value={x.name}>
                 {x.name} – {x.beschreibung}
               </option>
@@ -509,7 +570,10 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
 
         <div className="reihe">
           <div className="feld">
-            <label>Betonklasse</label>
+            <label>
+              Betonklasse
+              <Erklaerung thema="betonklasse" />
+            </label>
             <select
               value={par.betonklasse}
               onChange={(e) => setPar({ betonklasse: e.target.value })}
@@ -528,6 +592,7 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
           <ZahlFeld
             label="Betondeckung c_nom"
             einheit="mm"
+            erklaerung="betondeckung"
             wert={par.betondeckung}
             min={10}
             max={80}
@@ -556,19 +621,34 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
 
         <div className="reihe">
           <div className="feld">
-            <label>Betonstahl</label>
+            <label>
+              Betonstahl
+              <Erklaerung thema="betonstahl" />
+            </label>
             <select
               value={par.stahlguete}
-              onChange={(e) => setPar({ stahlguete: e.target.value as "B550A" | "B550B" })}
+              onChange={(e) => setPar({ stahlguete: e.target.value })}
             >
-              <option value="B550B">B550B (Stabstahl, duktil)</option>
-              <option value="B550A">B550A (Matten)</option>
+              {regelwerk.stahlsorten.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.titel}
+                </option>
+              ))}
             </select>
+            <div className="hinweis">
+              nach {regelwerk.betonstahlNorm} · f_yk ={" "}
+              {regelwerk.stahlsorten.find((s) => s.name === par.stahlguete)?.fyk ??
+                regelwerk.stahlsorten[0].fyk}{" "}
+              N/mm²
+            </div>
           </div>
 
           {mitMatten && (
             <div className="feld">
-              <label>Bewehrungslagen</label>
+              <label>
+                Bewehrungslagen
+                <Erklaerung thema="lagen" />
+              </label>
               <select
                 value={par.lagen}
                 onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
@@ -584,7 +664,10 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
         <div className="reihe">
           {mitMatten && (
             <div className="feld">
-              <label>Lagermatte</label>
+              <label>
+                Lagermatte
+                <Erklaerung thema="matte" />
+              </label>
               <select value={par.matte} onChange={(e) => setPar({ matte: e.target.value })}>
                 <option value="auto">automatisch (wirtschaftlichste)</option>
                 {LAGERMATTEN.map((m) => (
@@ -603,7 +686,10 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
 
           {mitMatten && (
           <div className="feld">
-            <label>Raster Anschlussbewehrung</label>
+            <label>
+              Raster Anschlussbewehrung
+              <Erklaerung thema="stababstand" />
+            </label>
             <select
               value={par.stababstand}
               onChange={(e) => setPar({ stababstand: Number(e.target.value) })}

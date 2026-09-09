@@ -580,3 +580,127 @@ td.zahl, th.zahl { text-align: right; }
 .download-reihe button.knopf { text-align: left; display: flex; justify-content: space-between; align-items: center; }
 
 .logo-vorschau { max-height: 60px; max-width: 200px; border: 1px solid var(--line); border-radius: 6px; padding: 4px; background: #fff; }
+
+/* ---------- Regelwerkswahl (Nationaler Anhang) ---------- */
+.regelwerk-wahl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.regelwerk-knopf {
+  display: block;
+  text-align: left;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: border-color 0.12s;
+}
+.regelwerk-knopf:hover { border-color: #adb5bd; }
+.regelwerk-knopf.aktiv { border-color: var(--accent); background: #fff8f3; }
+.regelwerk-knopf .rw-land { display: block; font-weight: 600; font-size: 14px; }
+.regelwerk-knopf .rw-norm { display: block; font-size: 11.5px; color: var(--ink-soft); }
+
+/* ---------- Erklärungsfenster zu Fachbegriffen ---------- */
+.erkl { position: relative; display: inline-block; }
+.erkl-knopf {
+  width: 17px;
+  height: 17px;
+  margin-left: 6px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.erkl-knopf:hover { border-color: var(--accent); color: var(--accent); }
+.erkl-knopf[aria-expanded="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.erkl-box {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: -8px;
+  width: min(320px, 78vw);
+  display: block;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(28, 36, 48, 0.14);
+  padding: 12px 14px;
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: normal;
+}
+.erkl-titel { display: block; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+.erkl-absatz { display: block; margin-bottom: 6px; color: var(--ink-soft); }
+.erkl-merke {
+  display: block;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+.erkl-merke span { display: block; font-size: 12px; }
+.erkl-zu {
+  display: block;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ---------- Startseite (bewusst schlank: Begrüßung + zwei Wege) ---------- */
+.start-schlank { max-width: 720px; }
+.willkommen { padding: 56px 0 8px; text-align: center; }
+.willkommen h2 {
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -0.4px;
+  margin: 22px 0 14px;
+}
+.willkommen-lead {
+  font-size: 16px;
+  color: var(--ink-soft);
+  margin: 0 auto 14px;
+  max-width: 56ch;
+  text-align: left;
+}
+.willkommen-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 26px;
+}
+.willkommen-klein { font-size: 12.5px; color: var(--ink-soft); margin: 14px 0 0; }
+
+.willkommen-recht {
+  margin-top: 44px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+.willkommen-recht p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.willkommen-rechtlinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 12px !important;
+}
+.willkommen-rechtlinks a { font-size: 13px; }
+
+@media (max-width: 640px) {
+  .willkommen { padding-top: 34px; }
+  .willkommen h2 { font-size: 25px; }
+  .willkommen-knoepfe .knopf { flex: 1 1 100%; text-align: center; }
+}

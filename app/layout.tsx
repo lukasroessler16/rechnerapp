@@ -4,9 +4,9 @@ import { LogoMarke, LogoZeile } from "@/components/Logo";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Bewehrungsrechner – Baustahlmenge für Wände & Decken",
+  title: "Bewehrungsrechner – Baustahlmenge für Betonbauteile",
   description:
-    "Bewehrungsmenge (Baustahl) für Betonwände und Decken schnell ermitteln: Skizze, Biegeliste und Stückliste als PDF. Nach EC2/ÖNORM B 1992-1-1. Pay-per-Use, ohne Registrierung.",
+    "Bewehrungsmenge (Baustahl) für Betonbauteile schnell ermitteln: Bauplan, Biegeliste und Stückliste als PDF. Nach Eurocode 2 mit österreichischem oder deutschem Nationalem Anhang. Pay-per-Use, ohne Registrierung.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -32,10 +32,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span>Rösch · Bewehrungsrechner</span>
           </div>
           <strong>Haftungshinweis:</strong> Dieses Werkzeug ermittelt Bewehrungsmengen auf
-          Basis der Mindestbewehrung nach Eurocode 2 / ÖNORM B 1992-1-1 und anerkannter
+          Basis der Mindestbewehrung nach Eurocode 2 mit dem gewählten Nationalen Anhang
+          (ÖNORM B 1992-1-1 oder DIN EN 1992-1-1/NA) und anerkannter
           Konstruktionsregeln. Es ersetzt keine statische Berechnung. Alle Ergebnisse sind
           vor der Ausführung von einer zur Tragwerksplanung befugten Person (Statiker:in,
-          Ziviltechniker:in) zu prüfen und freizugeben. Die Nutzung erfolgt auf eigene
+          Ziviltechniker:in bzw. Prüfingenieur:in) zu prüfen und freizugeben. Die Nutzung erfolgt auf eigene
           Verantwortung.
           <br />
           <span className="fuss-links">
