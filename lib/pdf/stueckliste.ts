@@ -26,7 +26,9 @@ const ENDE_Y = 30;
 
 export async function erzeugeStueckliste(
   projekt: Projekt,
-  ergebnis: Ergebnis
+  ergebnis: Ergebnis,
+  /** Herkunftsvermerk (Code-Stand, Zahlungsreferenz) für den Blattfuß */
+  stempel?: string
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle("Stückliste – Bewehrungsrechner");
@@ -122,6 +124,7 @@ export async function erzeugeStueckliste(
     6.5,
     { farbe: GRAU }
   );
+  if (stempel) z.text(stempel, 15, y - 4, 5.5, { farbe: GRAU });
 
   return doc.save();
 }

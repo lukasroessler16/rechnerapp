@@ -20,11 +20,15 @@ import { deflateSync, inflateSync } from "zlib";
 import { Projekt } from "./types";
 import { alleMassfelder, bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
 import { istRegelwerk, regelwerkVon, STANDARD_REGELWERK } from "./regelwerk";
+import { MIGRATIONEN, PAYLOAD_VERSION, codeStand } from "./version";
 
 const CHUNK = 450;
 const MAX_CHUNKS = 40;
 
-/** Projekt → Metadata-Objekt { n: Anzahl, p0..pn: Chunks } */
+/**
+ * Projekt → Metadata-Objekt
+ * { v: Format, b: Code-Stand, n: Anzahl Chunks, p0..pn: Chunks }
+ */
 export function projektZuMetadata(projekt: Projekt): Record<string, string> {
   // Logo niemals in die Metadata aufnehmen (Größenlimit!)
   const schlank: Projekt = {
@@ -38,20 +42,60 @@ export function projektZuMetadata(projekt: Projekt): Record<string, string> {
   const chunks = Math.ceil(b64.length / CHUNK);
   if (chunks > MAX_CHUNKS)
     throw new Error("Projektdaten zu umfangreich für den Checkout.");
+  // Format und Code-Stand zuerst: Sie entscheiden, wie der Rest zu lesen ist.
+  meta["v"] = String(PAYLOAD_VERSION);
+  meta["b"] = codeStand();
   meta["n"] = String(chunks);
   for (let i = 0; i < chunks; i++)
     meta[`p${i}`] = b64.slice(i * CHUNK, (i + 1) * CHUNK);
   return meta;
 }
 
+/** Was in einer Zahlungssession über Format und Code-Stand vermerkt ist */
+export interface PayloadHerkunft {
+  /** Formatversion der Projektdaten */
+  version: number;
+  /** Code-Stand zum Zeitpunkt der Zahlung, "unbekannt" bei alten Sessions */
+  codeStand: string;
+}
+
+/** Liest Format und Code-Stand, ohne die Projektdaten auszupacken */
+export function metadataHerkunft(meta: Record<string, string>): PayloadHerkunft {
+  return {
+    // Sessions aus der Zeit vor der Versionierung zählen als Version 1.
+    version: parseInt(meta["v"] ?? "1", 10) || 1,
+    codeStand: meta["b"] || "unbekannt",
+  };
+}
+
 /** Metadata-Objekt → Projekt (wirft bei ungültigen Daten) */
 export function metadataZuProjekt(meta: Record<string, string>): Projekt {
   const n = parseInt(meta["n"] ?? "0", 10);
   if (!n) throw new Error("Keine Projektdaten in der Zahlungssession.");
+
+  const { version } = metadataHerkunft(meta);
+  if (version > PAYLOAD_VERSION)
+    throw new Error(
+      "Diese Zahlung stammt aus einer neueren Programmversion und kann hier " +
+        "nicht gelesen werden. Bitte wenden Sie sich an den Betreiber."
+    );
+
   let b64 = "";
   for (let i = 0; i < n; i++) b64 += meta[`p${i}`] ?? "";
   const json = inflateSync(Buffer.from(b64, "base64url")).toString("utf8");
-  return validiereProjekt(JSON.parse(json));
+
+  // Ältere Formate der Reihe nach anheben, statt sie still falsch zu lesen.
+  let daten: unknown = JSON.parse(json);
+  for (let v = version; v < PAYLOAD_VERSION; v++) {
+    const migration = MIGRATIONEN[v];
+    if (!migration)
+      throw new Error(
+        `Für Projektdaten der Version ${v} fehlt die Migration auf Version ${PAYLOAD_VERSION}.`
+      );
+    daten = migration(daten);
+  }
+
+  return validiereProjekt(daten);
 }
 
 /** Grund-Validierung + Begrenzung der Eingaben (Server-Seite) */

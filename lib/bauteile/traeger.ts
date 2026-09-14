@@ -334,9 +334,11 @@ export const traeger: Bauteilmodul = {
   ],
 
   masseText: (p) =>
+    // Das statische System gehört mit auf den Plan: Ob Einfeld- oder
+    // Kragträger, entscheidet darüber, wo die Zugzone liegt.
     `Träger ${Math.round(p.masse.breite * 100)}/${Math.round(p.masse.hoehe * 100)} cm · L = ${zahl(
       p.masse.laenge
-    )} m`,
+    )} m · ${SYSTEM_NAME[p.details.system] ?? "Einfeldträger"}`,
 
   /* ---------------- Zeichnung: Längsschnitt + Querschnitt ---------------- */
 

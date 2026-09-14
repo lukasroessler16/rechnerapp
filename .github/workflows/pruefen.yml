@@ -1,0 +1,48 @@
+# Prüft bei jedem Push und jedem Pull Request, ob die Anwendung noch baut
+# und die Rechenergebnisse stimmen.
+#
+# Warum: Die Berechnungstests halten unter anderem die Wand-Regression fest
+# (446,7 kg, 12 Positionen). Ändert eine Anpassung an einem anderen Bauteil
+# versehentlich die Wand, fällt das hier auf – und nicht erst bei einem
+# Kunden, der danach Baustahl bestellt.
+
+name: Prüfen
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  # erlaubt das Starten von Hand im Actions-Reiter
+  workflow_dispatch:
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # ci statt install: installiert exakt die Fassungen aus package-lock.json
+      - run: npm ci
+
+      - name: Typen prüfen
+        run: npm run typecheck
+
+      - name: Stil prüfen
+        run: npm run lint
+
+      - name: Berechnungen prüfen
+        run: npm run test:berechnung
+
+      - name: Betriebsabsicherungen prüfen
+        run: npm run test:betrieb
+
+      - name: PDF-Erzeugung prüfen
+        run: npm run test:pdf
+
+      - name: Bauen
+        run: npm run build

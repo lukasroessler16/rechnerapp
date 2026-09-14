@@ -16,7 +16,9 @@ import { GRAU, Zeichner, de, ladeFonts, mm, schriftkopf } from "./helpers";
 
 export async function erzeugeBauplan(
   projekt: Projekt,
-  ergebnis: Ergebnis
+  ergebnis: Ergebnis,
+  /** Herkunftsvermerk (Code-Stand, Zahlungsreferenz) für den Blattfuß */
+  stempel?: string
 ): Promise<Uint8Array> {
   const modul = bauteilModul(projekt.bauteil);
   const doc = await PDFDocument.create();
@@ -86,6 +88,8 @@ export async function erzeugeBauplan(
   z.text("Vor Ausführung durch Tragwerksplaner:in prüfen und freigeben.", 14, 13, 6.5, {
     farbe: GRAU,
   });
+  // Herkunftsvermerk: macht ein ausgedrucktes Blatt einer Berechnung zuordenbar
+  if (stempel) z.text(stempel, 14, 10.5, 5.5, { farbe: GRAU });
 
   /* ---------- Schriftkopf ---------- */
   await schriftkopf(doc, z, 165, 12, {

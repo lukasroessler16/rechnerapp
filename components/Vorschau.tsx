@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Projekt } from "@/lib/types";
 import { berechneBewehrung } from "@/lib/bewehrung";
 import { hatFehler, pruefeProjekt } from "@/lib/validierung";
@@ -42,6 +43,7 @@ export default function Vorschau({
   const gesperrt = hatFehler(pruefung);
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
+  const router = useRouter();
   /** Zustimmung zur sofortigen Bereitstellung (Rücktrittsverzicht, FAGG) */
   const [verzicht, setVerzicht] = useState(false);
 
@@ -64,9 +66,11 @@ export default function Vorschau({
       if (!antwort.ok) throw new Error(daten.fehler ?? "Checkout fehlgeschlagen.");
       if (daten.demo) {
         // Demo-Modus ohne Stripe-Schlüssel: direkt zur Erfolgsseite
-        window.location.href = "/erfolg?demo=1";
+        router.push("/erfolg?demo=1");
         return;
       }
+      // Stripe liegt außerhalb der App – hier ist ein echter Seitenwechsel
+      // richtig, der Router kann das nicht.
       window.location.href = daten.url;
     } catch (e) {
       setFehler(e instanceof Error ? e.message : "Unbekannter Fehler.");
@@ -126,7 +130,7 @@ export default function Vorschau({
             ))}
           </ul>
           <div style={{ marginTop: 6, fontSize: 12.5 }}>
-            Die betroffenen Schritte sind in der Leiste oben mit „!" markiert.
+            Die betroffenen Schritte sind in der Leiste oben mit „!“ markiert.
           </div>
         </div>
       )}

@@ -6,16 +6,18 @@
  * so ist sie nach der Zahlung serverseitig verfügbar und kann nicht gegen
  * andere Daten getauscht werden (zustandslose Architektur, keine Datenbank).
  *
- * DEMO-MODUS: Ist kein STRIPE_SECRET_KEY gesetzt, antwortet die Route mit
- * { demo: true } und die App springt ohne Zahlung zur Erfolgsseite. So lässt
- * sich alles lokal testen, bevor Stripe eingerichtet ist.
+ * DEMO-MODUS: Nur außerhalb der Produktion (oder mit ausdrücklichem
+ * DEMO_MODUS=1) antwortet die Route mit { demo: true } und die App springt
+ * ohne Zahlung zur Erfolgsseite. In Produktion ohne Stripe-Schlüssel schlägt
+ * der Aufruf hart fehl – siehe lib/betrieb.ts.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { stripeClient } from "@/lib/stripe";
 import { validiereProjekt, projektZuMetadata } from "@/lib/payload";
 import { basisUrl } from "@/lib/basis";
-
+import { BetriebsFehler, kundenMeldung, melde, stripeSchluessel } from "@/lib/betrieb";
+import { pruefeLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -23,6 +25,15 @@ export const runtime = "nodejs";
 const PREIS_CENT = parseInt(process.env.PREIS_CENT ?? "2900", 10);
 
 export async function POST(req: NextRequest) {
+  // Zahlungsvorgänge anzustoßen ist billig, aber nicht gratis (Stripe-API).
+  const limit = pruefeLimit(req, "checkout", 10, 60);
+  if (!limit.erlaubt) {
+    return NextResponse.json(
+      { fehler: "Zu viele Anfragen. Bitte einen Moment warten." },
+      { status: 429, headers: { "Retry-After": String(limit.wartenSek) } }
+    );
+  }
+
   try {
     const { projekt: roh, verzichtBestaetigt } = await req.json();
     const projekt = validiereProjekt(roh);
@@ -31,23 +42,20 @@ export async function POST(req: NextRequest) {
     // Zustimmung darf die Zahlung nicht starten. Serverseitig geprüft, damit
     // die Bestätigung nicht durch Manipulation der Oberfläche umgehbar ist.
     if (verzichtBestaetigt !== true) {
-      return NextResponse.json(
-        {
-          fehler:
-            "Bitte bestätigen Sie die sofortige Bereitstellung der Dokumente, um fortzufahren.",
-        },
-        { status: 400 }
+      throw new BetriebsFehler(
+        "Bitte bestätigen Sie die sofortige Bereitstellung der Dokumente, um fortzufahren."
       );
     }
 
-    const schluessel = process.env.STRIPE_SECRET_KEY;
+    // Wirft in Produktion, wenn die Zahlungsanbindung fehlt, statt still
+    // in den Demo-Modus zu fallen.
+    const schluessel = stripeSchluessel();
     if (!schluessel) {
-      // Kein Stripe konfiguriert → Demo-Modus (nur für lokales Testen!)
+      melde("checkout", "Demo-Modus aktiv – es wird keine Zahlung verlangt.", {}, "warnung");
       return NextResponse.json({ demo: true });
     }
 
     const stripe = stripeClient(schluessel);
-
     const basis = basisUrl(req);
 
     const session = await stripe.checkout.sessions.create({
@@ -81,7 +89,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
-    const text = e instanceof Error ? e.message : "Unbekannter Fehler";
-    return NextResponse.json({ fehler: text }, { status: 400 });
+    melde("checkout", e);
+    const { text, status } = kundenMeldung(e);
+    return NextResponse.json({ fehler: text }, { status });
   }
 }

@@ -1,8 +1,13 @@
 # Bewehrungsrechner
 
 Öffentliche Webapp zur schnellen Ermittlung der Baustahlmenge (Bewehrung) für
-Betonwände und Decken/Bodenplatten – mit Live-Skizze, Pay-per-Use über Stripe
-und drei PDF-Dokumenten (Bauplan, Biegeliste, Stückliste).
+einzelne Betonbauteile – mit Live-Skizze, Pay-per-Use über Stripe und drei
+PDF-Dokumenten (Bauplan, Biegeliste, Stückliste).
+
+Acht Bauteile: Wand, Deckenplatte, Bodenplatte, Stütze, Träger,
+Streifenfundament, Einzelfundament, Stützmauer. Gerechnet wird nach Eurocode 2,
+wahlweise mit dem österreichischen (ÖNORM B 1992-1-1) oder dem deutschen
+Nationalen Anhang (DIN EN 1992-1-1/NA).
 
 **Zielgruppe:** Baumeister, Statiker, kleine Bauunternehmen (Österreich/EU).
 
@@ -80,9 +85,10 @@ npm install
 
 ## 3. Lokal testen
 
-Die App läuft **ohne Stripe-Konfiguration automatisch im Demo-Modus**:
-Der Bezahl-Button springt direkt zur Erfolgsseite und alle PDFs lassen sich
-kostenlos erzeugen – ideal zum Ausprobieren.
+**Lokal** (also außerhalb der Produktion) läuft die App ohne
+Stripe-Konfiguration automatisch im **Demo-Modus**: Der Bezahl-Button springt
+direkt zur Erfolgsseite und alle PDFs lassen sich kostenlos erzeugen – ideal
+zum Ausprobieren.
 
 ```bash
 npm run dev
@@ -90,16 +96,21 @@ npm run dev
 
 Dann im Browser öffnen: <http://localhost:3000>
 
-Zusätzliche Prüfskripte:
+Prüfskripte:
 
 ```bash
-npx tsx scripts/test-berechnung.ts   # Berechnungskern (EC2-Werte, Payload)
-npx tsx scripts/test-pdf.ts          # erzeugt Beispiel-PDFs unter /tmp
+npm test        # Typen, Stil, Berechnungskern, Betriebsabsicherungen, PDFs
+npm run pruefen # dasselbe plus vollständiger Build – vor jedem Deploy
+npm run dev &   # für den End-to-End-Test muss ein Server laufen
+npm run test:e2e -- 3000
 ```
 
-> **Wichtig:** Sobald in `.env.local` bzw. auf Vercel ein `STRIPE_SECRET_KEY`
-> gesetzt ist, ist der Demo-Modus **abgeschaltet** und Dokumente gibt es nur
-> noch gegen bezahlte Stripe-Session.
+> **Wichtig – Demo-Modus und Produktion:** Sobald ein `STRIPE_SECRET_KEY`
+> gesetzt ist, ist der Demo-Modus abgeschaltet. Und in Produktion gibt es
+> Demo **niemals automatisch**: Fehlt dort der Schlüssel, schlägt der Checkout
+> hart fehl, statt die Dokumente stillschweigend zu verschenken. Wer für eine
+> Vorführung trotzdem Demo in Produktion braucht, setzt ausdrücklich
+> `DEMO_MODUS=1` – und entfernt die Variable danach sofort wieder.
 
 ## 4. Stripe einrichten
 
@@ -250,26 +261,35 @@ World4You/easyname kaufen und per CNAME verbinden).
 
 ```
 app/
-  page.tsx              Startseite → Wizard
-  erfolg/page.tsx       Erfolgsseite mit PDF-Downloads (prüft Zahlung je Abruf)
-  rechtliches/page.tsx  Haftung + Impressums-Platzhalter
-  api/checkout/route.ts Stripe-Checkout-Session (Projekt → Metadata)
+  page.tsx               Startseite (nur Begrüßung + zwei Wege)
+  rechner/page.tsx       Wizard
+  beispiele/page.tsx     Musterdokumente und fachliche Grundlagen
+  erfolg/page.tsx        Erfolgsseite mit PDF-Downloads (prüft Zahlung je Abruf)
+  rechtliches/, impressum/, datenschutz/
+  robots.ts, sitemap.ts, opengraph-image.tsx
+  api/checkout/route.ts  Stripe-Checkout-Session (Projekt → Metadata)
   api/dokumente/route.ts Zahlungsprüfung + PDF-Erzeugung
-  api/stripe-webhook/route.ts  Zahlungseingang → E-Mail mit Download-Link
+  api/muster/route.ts    kostenlose Musterdokumente
+  api/stripe-webhook/    E-Mail-Versand nach der Zahlung
 components/
-  Wizard.tsx, steps.tsx, Vorschau.tsx, SkizzeSVG.tsx, DetailBilder.tsx
+  Wizard.tsx, steps.tsx, Vorschau.tsx, SkizzeSVG.tsx, AnsichtSVG.tsx,
+  DetailBilder.tsx, Erklaerung.tsx (Erklärungsfenster für Fachbegriffe), Logo.tsx
 lib/
   types.ts              zentrale Typen
-  normdaten.ts          Betonklassen, Expositionsklassen, Matten, Stahl (EC2/ÖNORM)
-  bewehrung.ts          Berechnungskern (Mindestbewehrung, Positionen, Gewichte)
+  regelwerk.ts          Nationale Anhänge AT/DE: Stahlsorten, Deckung, Normzitate
+  normdaten.ts          Betonklassen, Matten, Übergreifung, Biegerollen
+  bauteile/             ein Modul je Bauteil + Register (typen.ts, helfer.ts)
+  bewehrung.ts          Berechnungskern (führt die Bauteilmodule aus)
   payload.ts            Komprimierung/Validierung für Stripe-Metadata
-  basis.ts              öffentliche Basis-URL (Schema-sicher)
-  email.ts              E-Mail-Versand über Resend (REST)
-  stripe.ts             Stripe-Client (fetch-HTTP-Client für Vercel)
-  standardwerte.ts      Startwerte
-  pdf/                  helpers, bauplan, biegeliste, stueckliste
+  version.ts            Formatversion + Code-Stand der bezahlten Daten
+  betrieb.ts            Demo-Riegel, Fehlerbehandlung, Alarmierung
+  ratelimit.ts          Bremse für die API-Routen
+  standardwerte.ts, muster.ts, validierung.ts, email.ts, basis.ts, stripe.ts
+  pdf/                  helpers, ansicht, bauplan, biegeliste, stueckliste
 scripts/
-  test-berechnung.ts, test-pdf.ts, test-e2e.mjs
+  test-berechnung.ts, test-betrieb.ts, test-pdf.ts, test-e2e.mjs
+.github/workflows/
+  pruefen.yml           Typen, Stil, Tests und Build bei jedem Push
 ```
 
 ## 7. Fachliche Grundlagen & Grenzen
@@ -281,8 +301,16 @@ dokumentiert und leicht anpassbar):
   aufgeteilt), horizontal max(25 % davon; 0,001·Ac).
 * **Decken/Platten** (EC2 9.2.1.1 / 9.3): As,min = max(0,26·fctm/fyk·b·d;
   0,0013·b·d), Querbewehrung ≥ 20 %.
-* **Betondeckung** c_nom = c_min,dur (ÖNORM B 1992-1-1, Klasse S4) + 10 mm,
-  aus der Expositionsklasse vorgeschlagen, überschreibbar.
+* **Betondeckung** c_nom = c_min,dur + Vorhaltemaß, aus der Expositionsklasse
+  vorgeschlagen, überschreibbar. Österreich: Δc_dev = 10 mm. Deutschland:
+  15 mm (XC1: 10 mm).
+* **Regelwerk AT/DE** (`lib/regelwerk.ts`): Der Umschalter ändert wirklich die
+  Rechnung – Betonstahl B550 (ÖNORM B 4707) gegen B500 (DIN 488), die
+  Betondeckung nach dem jeweiligen Anhang, die vertikale Mindestbewehrung von
+  Wänden (0,002·Ac gegen 0,0015·Ac) und sämtliche Normzitate in Plan, Listen
+  und Hinweisen. Bewusst nicht unterschieden sind Stellen, an denen beide
+  Anhänge übereinstimmen oder nur lastabhängige Terme abweichen; das ist im
+  Kopf der Datei im Einzelnen begründet.
 * **Lagermatten** Q188A–Q636A (6,00 × 2,30 m), Stoß 35 cm, 10 % Verschnitt.
 * **Konstruktive Details:** Anschlusseisen Ø10 im gewählten Raster (L-Form
   0,80/0,80 m), Eckwinkel, Steckbügel Ø8/25 an freien Rändern, Sturz-/
@@ -300,9 +328,39 @@ Haftungshinweis ist fix im Footer, in der Vorschau und in allen PDFs verankert.
 hinterlegten Konstruktionsregeln einmal reviewen** – sie sind gängige Praxis,
 aber regionale Gepflogenheiten unterscheiden sich.
 
-**Vor Veröffentlichung außerdem:** Impressum in
-`app/rechtliches/page.tsx` ausfüllen (ECG § 5), AGB/Widerrufstext rechtlich
-prüfen lassen.
+**Vor Veröffentlichung außerdem:** Impressum und Datenschutzerklärung
+ausfüllen (alle `<Platzhalter>` in `app/impressum/` und `app/datenschutz/`),
+AGB/Widerrufstext rechtlich prüfen lassen, Umsatzsteuer klären. Die
+vollständige Liste steht in Abschnitt 9.
+
+## 8b. Betrieb: was im Ernstfall passiert
+
+Drei Dinge sind bewusst so gebaut, dass ein Fehler auffällt statt Geld zu
+kosten – sie sind in `scripts/test-betrieb.ts` festgehalten:
+
+* **Kein stiller Gratis-Betrieb.** Fehlt in Produktion der Stripe-Schlüssel,
+  schlägt der Checkout fehl (`lib/betrieb.ts`). Früher wurden die Dokumente in
+  diesem Fall verschenkt, ohne dass es jemand gemerkt hätte.
+* **Fehler nach der Zahlung sind Alarmfälle.** `/api/dokumente` meldet sie mit
+  der Stufe `kritisch` samt Zahlungsreferenz. In den Vercel-Logs lässt sich
+  darauf filtern (`"schwere":"kritisch"`); sobald ein Fehlerdienst wie Sentry
+  eingerichtet ist, wird er **nur** in `melde()` ergänzt. Der Kunde sieht nie
+  eine interne Fehlermeldung, sondern einen verständlichen Satz mit der
+  Kontaktadresse aus `NEXT_PUBLIC_KONTAKT_MAIL`.
+* **Bezahlte Links bleiben nachvollziehbar.** Jede Zahlung speichert die
+  Formatversion der Projektdaten und den Code-Stand (`lib/version.ts`). Der
+  Code-Stand steht auch klein auf jedem PDF. Ändern sich später die
+  Rechenregeln, lässt sich damit feststellen, welcher Programmstand ein
+  Dokument erzeugt hat; ändert sich das Datenformat, wird `PAYLOAD_VERSION`
+  erhöht und eine Migration in `MIGRATIONEN` ergänzt, statt alte Sessions
+  stillschweigend falsch zu lesen.
+
+Dazu kommen ein Rate-Limit je IP und Route (`lib/ratelimit.ts`) und
+Schutz-Header inklusive Content-Security-Policy (`next.config.ts`).
+
+## 9. Vor dem Live-Gang
+
+Der Stand der offenen Punkte wird in `PROJEKT_NOTIZEN.md` geführt.
 
 ## 8. Anpassungen
 

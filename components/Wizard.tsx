@@ -56,13 +56,24 @@ export default function Wizard() {
   const [schritt, setSchritt] = useState(0);
   const [geladen, setGeladen] = useState(false);
 
-  // Zustand wiederherstellen (nur im Browser)
+  /*
+   * Zustand wiederherstellen (nur im Browser).
+   *
+   * Zur eslint-Ausnahme: Die Regel warnt vor setState im Effektkörper, weil
+   * das meist ein vermeidbarer zweiter Renderdurchlauf ist. Hier ist es der
+   * ausdrücklich vorgesehene Fall – Übernahme des Zustands aus einem externen
+   * Speicher beim Einhängen. Die Alternative, den Wert schon in useState zu
+   * lesen, scheidet aus: sessionStorage existiert beim Rendern auf dem Server
+   * nicht, und der Server würde etwas anderes ausliefern als der Browser
+   * anschließend darstellt (Hydration-Fehler). Der Effekt läuft genau einmal.
+   */
   useEffect(() => {
     try {
       const roh = sessionStorage.getItem("bewehrung_projekt");
       if (roh) {
         // normalisieren: Projekte aus älteren Versionen können andere
         // Maß- und Detailschlüssel haben
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setProjekt(normalisiereProjekt(JSON.parse(roh)));
       } else {
         // Neuer Aufruf: Firmendaten und Logo aus einem früheren Durchlauf

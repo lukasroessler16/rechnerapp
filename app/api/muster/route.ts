@@ -14,6 +14,8 @@ import { berechneBewehrung } from "@/lib/bewehrung";
 import { erzeugeBauplan } from "@/lib/pdf/bauplan";
 import { erzeugeBiegeliste } from "@/lib/pdf/biegeliste";
 import { erzeugeStueckliste } from "@/lib/pdf/stueckliste";
+import { kundenMeldung, melde } from "@/lib/betrieb";
+import { pruefeLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
@@ -24,25 +26,43 @@ const DATEINAMEN: Record<string, string> = {
 };
 
 export async function GET(req: NextRequest) {
+  // Frei zugänglich und damit der offenste Punkt der App: Ohne Bremse ließe
+  // sich hier beliebig viel Rechenzeit verbrennen.
+  const limit = pruefeLimit(req, "muster", 20, 60);
+  if (!limit.erlaubt) {
+    return NextResponse.json(
+      { fehler: "Zu viele Anfragen. Bitte einen Moment warten." },
+      { status: 429, headers: { "Retry-After": String(limit.wartenSek) } }
+    );
+  }
+
   const typ = req.nextUrl.searchParams.get("typ") ?? "bauplan";
   if (!DATEINAMEN[typ])
     return NextResponse.json({ fehler: "Unbekannter Dokumenttyp." }, { status: 400 });
 
-  const ergebnis = berechneBewehrung(MUSTERPROJEKT);
-  const pdf =
-    typ === "bauplan"
-      ? await erzeugeBauplan(MUSTERPROJEKT, ergebnis)
-      : typ === "biegeliste"
-        ? await erzeugeBiegeliste(MUSTERPROJEKT, ergebnis)
-        : await erzeugeStueckliste(MUSTERPROJEKT, ergebnis);
+  try {
+    const ergebnis = berechneBewehrung(MUSTERPROJEKT);
+    const pdf =
+      typ === "bauplan"
+        ? await erzeugeBauplan(MUSTERPROJEKT, ergebnis)
+        : typ === "biegeliste"
+          ? await erzeugeBiegeliste(MUSTERPROJEKT, ergebnis)
+          : await erzeugeStueckliste(MUSTERPROJEKT, ergebnis);
 
-  return new NextResponse(Buffer.from(pdf), {
-    headers: {
-      "Content-Type": "application/pdf",
-      // "inline": öffnet direkt im Browser statt herunterzuladen
-      "Content-Disposition": `inline; filename="${DATEINAMEN[typ]}"`,
-      // Muster ändern sich selten – eine Stunde zwischenspeichern
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
+    return new NextResponse(Buffer.from(pdf), {
+      headers: {
+        "Content-Type": "application/pdf",
+        // "inline": öffnet direkt im Browser statt herunterzuladen
+        "Content-Disposition": `inline; filename="${DATEINAMEN[typ]}"`,
+        // Muster ändern sich selten – eine Stunde zwischenspeichern
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  } catch (e) {
+    // Ein kaputtes Muster heißt: Die Musterdokumente auf /beispiele sind
+    // kaputt – das sieht jeder Interessent vor dem Kauf.
+    melde("muster", e, { typ });
+    const { text, status } = kundenMeldung(e);
+    return NextResponse.json({ fehler: text }, { status });
+  }
 }

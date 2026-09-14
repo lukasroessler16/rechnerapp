@@ -29,7 +29,7 @@
  */
 
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
-import { BETONKLASSEN, stabflaeche } from "../normdaten";
+import { BETONKLASSEN } from "../normdaten";
 import { fykVon, regelwerkVon } from "../regelwerk";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
 import {
