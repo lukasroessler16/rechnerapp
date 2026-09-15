@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LogoMarke, LogoZeile } from "@/components/Logo";
 import { oeffentlicheBasis } from "@/lib/basis";
+import { statistikAktiv, statistikDomain, statistikUrl } from "@/lib/statistik";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,6 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="de">
       <body>
+        {/* Zählskript, nur wenn eingerichtet – cookiefrei, siehe lib/statistik.ts */}
+        {statistikAktiv() && (
+          <script defer data-domain={statistikDomain()} src={statistikUrl()} />
+        )}
         <header className="kopf">
           {/* Marke führt von überall zurück zur Startseite */}
           <Link href="/" className="kopf-marke" aria-label="Rösch – zur Startseite">

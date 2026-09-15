@@ -9,10 +9,13 @@
 import { NextRequest } from "next/server";
 import {
   BetriebsFehler,
+  alarmSperreZuruecksetzen,
   demoErlaubt,
   kundenMeldung,
+  melde,
   stripeSchluessel,
 } from "../lib/betrieb";
+import { ereignis, statistikAktiv } from "../lib/statistik";
 import { limitZuruecksetzen, pruefeLimit } from "../lib/ratelimit";
 import { metadataHerkunft, metadataZuProjekt, projektZuMetadata } from "../lib/payload";
 import { PAYLOAD_VERSION } from "../lib/version";
@@ -167,4 +170,84 @@ if (metadataHerkunft(ohneVersion).codeStand !== "unbekannt")
   throw new Error("Fehlt der Code-Stand, muss das als 'unbekannt' erkennbar sein.");
 console.log("Version und Code-Stand werden geschrieben, geprüft und bleiben lesbar");
 
-console.log("\nBETRIEBSTESTS OK");
+/* ------------------------------------------------------------------ */
+/* 5) Alarmierung und Statistik (asynchron)                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Der Alarmversand läuft absichtlich ohne await – deshalb muss dieser Teil
+ * kurz warten, bevor er zählt. Während der Prüfung werden console.error und
+ * console.warn abgefangen: Die Meldungen sind hier erwünscht und sollen die
+ * Testausgabe nicht wie einen Absturz aussehen lassen.
+ */
+async function alarmUndStatistik() {
+  console.log("\n=== Alarmierung ===");
+
+  const echtesError = console.error;
+  const echtesWarn = console.warn;
+  let versandVersuche = 0;
+  const abfangen = (...args: unknown[]) => {
+    const erste = String(args[0] ?? "");
+    if (erste.includes("[Alarm]") || erste.includes("[E-Mail]")) versandVersuche++;
+  };
+  console.error = abfangen;
+  console.warn = abfangen;
+
+  try {
+    // Ohne Mailkonfiguration darf melde() trotzdem nie werfen – sonst risse
+    // ein fehlender Resend-Schlüssel den Vorgang mit, den er melden soll.
+    process.env.RESEND_API_KEY = "";
+    process.env.MAIL_ABSENDER = "";
+    delete process.env.ALARM_MAIL;
+    process.env.NEXT_PUBLIC_KONTAKT_MAIL = "betreiber@example.at";
+
+    alarmSperreZuruecksetzen();
+    // Fünfmal derselbe Defekt, einmal ein anderer an derselben Stelle.
+    for (let i = 0; i < 5; i++) {
+      melde("test-sperre", new Error("immer derselbe Defekt"), { bezahlt: true }, "kritisch");
+    }
+    melde("test-sperre", new Error("ein anderer Defekt"), { bezahlt: true }, "kritisch");
+
+    // dem Versand Zeit geben (dynamischer Import + Promise)
+    await new Promise((r) => setTimeout(r, 120));
+  } finally {
+    console.error = echtesError;
+    console.warn = echtesWarn;
+  }
+
+  if (versandVersuche !== 2)
+    throw new Error(
+      `Sperrfrist: erwartet 2 Versandversuche (ein Defekt + ein anderer), gezählt ${versandVersuche}.`
+    );
+  console.log("melde() wirft nie, und die Sperrfrist fasst gleiche Meldungen zusammen");
+
+  /* ---------------- Statistik ---------------- */
+
+  console.log("\n=== Statistik ===");
+
+  mitUmgebung(
+    { NEXT_PUBLIC_STATISTIK_URL: undefined, NEXT_PUBLIC_STATISTIK_DOMAIN: undefined },
+    () => {
+      if (statistikAktiv()) throw new Error("Ohne Konfiguration darf keine Statistik aktiv sein.");
+    }
+  );
+  mitUmgebung(
+    {
+      NEXT_PUBLIC_STATISTIK_URL: "https://zaehler.example/js/script.js",
+      NEXT_PUBLIC_STATISTIK_DOMAIN: "beispiel.at",
+    },
+    () => {
+      if (!statistikAktiv()) throw new Error("Mit beiden Variablen muss die Statistik aktiv sein.");
+    }
+  );
+  // Auf dem Server (kein window) darf ereignis() nie werfen
+  ereignis("test", { a: "b" });
+  console.log("Statistik ist ohne Einrichtung folgenlos und wirft nie");
+
+  console.log("\nBETRIEBSTESTS OK");
+}
+
+alarmUndStatistik().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

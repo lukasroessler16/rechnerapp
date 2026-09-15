@@ -75,15 +75,46 @@ export function kontaktAdresse(): string {
 }
 
 /**
+ * Sperrfrist je Fehlerart, damit ein kaputtes Deployment nicht hundert
+ * Alarmmails auslöst. Ein zweiter Alarm derselben Art geht erst nach Ablauf
+ * hinaus; protokolliert wird trotzdem jeder einzelne Fall.
+ */
+const ALARM_SPERRE_MS = 10 * 60 * 1000;
+const letzterAlarm = new Map<string, number>();
+
+function alarmFaellig(signatur: string): boolean {
+  const jetzt = Date.now();
+  const vorher = letzterAlarm.get(signatur);
+  if (vorher && jetzt - vorher < ALARM_SPERRE_MS) return false;
+  letzterAlarm.set(signatur, jetzt);
+  // Die Map bleibt klein; bei Bedarf Abgelaufenes wegräumen.
+  if (letzterAlarm.size > 200) {
+    for (const [k, t] of letzterAlarm) if (jetzt - t > ALARM_SPERRE_MS) letzterAlarm.delete(k);
+  }
+  return true;
+}
+
+/** Nur für Tests: Sperrfristen zurücksetzen */
+export function alarmSperreZuruecksetzen() {
+  letzterAlarm.clear();
+}
+
+/**
  * Zentrale Fehlermeldung an den Betreiber.
  *
- * Heute: strukturierte Zeile auf stderr – in den Vercel-Logs sichtbar und
- * dort als Log-Drain oder Alarm auswertbar.
- * Sobald ein Fehlerdienst eingerichtet ist (z. B. Sentry), wird der Aufruf
- * NUR HIER ergänzt; alle Aufrufstellen bleiben unverändert.
+ * Zwei Wege:
+ *  1. Immer eine strukturierte Zeile auf stderr – in den Vercel-Logs sichtbar
+ *     und dort filterbar ("schwere":"kritisch").
+ *  2. Bei `schwere: "kritisch"` zusätzlich eine E-Mail. Das sind die Fälle,
+ *     in denen bereits Geld geflossen ist: Jemand hat bezahlt und keine
+ *     Unterlagen bekommen. Darauf muss jemand reagieren, und zwar heute –
+ *     ein Protokolleintrag, den niemand liest, genügt dafür nicht.
  *
- * `schwere: "kritisch"` markiert die Fälle, bei denen bereits Geld geflossen
- * ist – die gehören auf einen Alarm, der jemanden erreicht.
+ * Die Mail wird bewusst nicht abgewartet: Sie darf den Vorgang, aus dem
+ * heraus sie ausgelöst wurde, weder verzögern noch zum Scheitern bringen.
+ *
+ * Wächst das Aufkommen, kann hier zusätzlich ein Fehlerdienst angebunden
+ * werden (z. B. Sentry) – alle Aufrufstellen bleiben davon unberührt.
  */
 export function melde(
   stelle: string,
@@ -108,13 +139,27 @@ export function melde(
 
   // Einzeiliges JSON: in Vercel gut filterbar ("schwere":"kritisch")
   console.error(`[${schwere.toUpperCase()}] ${JSON.stringify(eintrag)}`);
-  if (fehler instanceof Error && fehler.stack && schwere !== "warnung") {
-    console.error(fehler.stack);
-  }
+  const spur = fehler instanceof Error ? fehler.stack : undefined;
+  if (spur && schwere !== "warnung") console.error(spur);
 
-  // HIER später den Fehlerdienst anbinden, z. B.:
-  // Sentry.captureException(fehler, { level: schwere === "kritisch" ? "fatal" : "error",
-  //                                   tags: { stelle }, extra: zusatz });
+  if (schwere !== "kritisch") return;
+
+  // Signatur ohne die wechselnden Anteile (Session-Kennung, Zeit), damit
+  // derselbe Defekt als derselbe erkannt wird.
+  if (!alarmFaellig(`${stelle}|${text.slice(0, 120)}`)) return;
+
+  // Absichtlich ohne await – siehe oben.
+  void import("./email")
+    .then(({ sendeAlarmMail }) =>
+      sendeAlarmMail({
+        stelle,
+        meldung: text,
+        sessionId: typeof zusatz.sessionId === "string" ? zusatz.sessionId : undefined,
+        bezahlt: zusatz.bezahlt === true,
+        spur: spur?.split("\n").slice(0, 12).join("\n"),
+      })
+    )
+    .catch((e) => console.error("[Alarm] Konnte nicht versendet werden:", e));
 }
 
 /**

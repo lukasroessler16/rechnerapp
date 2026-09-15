@@ -9,11 +9,12 @@
  * keine Datenbank – jeder Aufruf ist eigenständig.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Projekt } from "@/lib/types";
 import { bauteilModul } from "@/lib/bauteile";
 import { neuesProjekt, normalisiereProjekt } from "@/lib/standardwerte";
 import { pruefeProjekt, schrittZuMeldung } from "@/lib/validierung";
+import { ereignis } from "@/lib/statistik";
 import SkizzeSVG from "./SkizzeSVG";
 import {
   Step1Bauteil,
@@ -110,6 +111,13 @@ export default function Wizard() {
     }
   }, [projekt, geladen]);
 
+  /**
+   * Je Sitzung einmal melden, welcher Schritt am weitesten erreicht wurde.
+   * Daraus ergibt sich der Trichter: Wo brechen Interessenten ab? Erfasst
+   * werden nur Schrittname und Bauteil, nichts Eingegebenes.
+   */
+  const gemeldet = useRef(new Set<string>());
+
   const set: Setzer = (fn) => setProjekt(fn);
 
   const modul = bauteilModul(projekt.bauteil);
@@ -128,6 +136,15 @@ export default function Wizard() {
   // Wechselt das Bauteil auf eines ohne Öffnungen, darf der Zeiger nicht
   // hinter das Ende der (nun kürzeren) Schrittfolge zeigen.
   const aktiv = Math.min(schritt, schluessel.length - 1);
+
+  // Erreichten Schritt melden – jeder Schritt nur beim ersten Besuch.
+  const schrittName = schluessel[aktiv];
+  const bauteilId = projekt.bauteil;
+  useEffect(() => {
+    if (!geladen || gemeldet.current.has(schrittName)) return;
+    gemeldet.current.add(schrittName);
+    ereignis("schritt", { schritt: schrittName, bauteil: bauteilId });
+  }, [schrittName, bauteilId, geladen]);
 
   // Schritte mit blockierenden Fehlern in der Leiste rot markieren
   const fehlerSchritte = useMemo(() => {

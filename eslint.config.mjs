@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Von Claude in die Unterhaltung gelieferte Kopien und beiseitegelegte
+    // Dateien: kein Quellcode des Projekts, gehoeren nicht geprueft.
+    "Claude outputs/**",
+    "_to_delete/**",
   ]),
 ]);
 

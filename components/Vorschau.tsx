@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ereignis } from "@/lib/statistik";
 import { Projekt } from "@/lib/types";
 import { berechneBewehrung } from "@/lib/bewehrung";
 import { hatFehler, pruefeProjekt } from "@/lib/validierung";
@@ -51,6 +52,11 @@ export default function Vorschau({
   const bezahlen = async () => {
     setLaedt(true);
     setFehler(null);
+    // Nur Bauteil und Regelwerk – keine Maße, keine Firmendaten.
+    ereignis("checkout_gestartet", {
+      bauteil: projekt.bauteil,
+      regelwerk: projekt.parameter.regelwerk,
+    });
     try {
       // Projekt für die Erfolgsseite sichern (Stripe leitet zurück).
       // Zusätzlich dauerhaft (localStorage): so erscheint das Logo auch dann

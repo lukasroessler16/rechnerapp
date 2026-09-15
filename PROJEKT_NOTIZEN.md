@@ -1,6 +1,6 @@
 # Projektnotizen (für nahtlose Fortsetzung in jeder Claude-Sitzung)
 
-Stand: 2026-09-14 · Status: **funktional fertig, vor dem Live-Gang**
+Stand: 2026-09-15 · Status: **funktional fertig, vor dem Live-Gang**
 (Build ✓, `npm test` ✓, E2E ✓, Paywall-Negativtest ✓).
 
 ## Getroffene Entscheidungen (mit Lukas abgestimmt)
@@ -48,8 +48,13 @@ DE 1,88 cm²/m / Q188A.
 ## Betriebsabsicherungen (neu, September 2026)
 
 * `lib/betrieb.ts` – Demo-Riegel (in Produktion nur mit `DEMO_MODUS=1`),
-  `BetriebsFehler` mit kundentauglichem Text, `melde()` als einzige Stelle für
-  die spätere Sentry-Anbindung, Fehler nach der Zahlung als `kritisch`.
+  `BetriebsFehler` mit kundentauglichem Text, `melde()` als einzige Meldestelle.
+  Fehler nach der Zahlung gelten als `kritisch` und lösen eine Alarmmail an
+  `ALARM_MAIL` aus (Sperrfrist 10 min je Fehlerart). Sentry kann später
+  zusätzlich in `melde()` angebunden werden.
+* `lib/statistik.ts` – cookiefreie Zählung (Plausible/Umami), vier Ereignisse:
+  schritt, checkout_gestartet, dokument_geladen, dokument_fehler. Ohne
+  `NEXT_PUBLIC_STATISTIK_URL` passiert nichts.
 * `lib/version.ts` – `PAYLOAD_VERSION`, `MIGRATIONEN`, Code-Stand auf dem PDF.
 * `lib/ratelimit.ts` – Zähler je IP und Route, im Arbeitsspeicher der Instanz.
 * `next.config.ts` – CSP und Schutz-Header (`unsafe-eval` nur in Entwicklung).
@@ -69,14 +74,10 @@ Payload-Version, Rate-Limit, Schutz-Header, CI, robots/sitemap/OG-Bild.
 
 **Software (offen):**
 
-* Fehlerdienst tatsächlich einrichten (Sentry o. ä.) und in `melde()` anbinden.
-* Datensparsame Statistik (Plausible/Umami) – ohne sie ist nicht erkennbar,
-  wo Interessenten abspringen; rückwirkend nicht nachholbar.
-* Eigene Domain in Resend verifizieren (SPF/DKIM/DMARC), sonst landen die
-  Dokumenten-Mails im Spam.
-* `NEXT_PUBLIC_KONTAKT_MAIL` setzen – steht sonst in keiner Fehlermeldung.
-* Beispiele-Seite spricht noch von Wänden und Decken, kennt die anderen sechs
-  Bauteile und den DIN-Modus nicht.
+* Eigene Domain in Resend verifizieren (SPF/DKIM/DMARC) – davon hängen jetzt
+  beide Mailwege ab: Dokumentenlink an den Kunden UND Alarmmail an Lukas.
+* `ALARM_MAIL` und `NEXT_PUBLIC_KONTAKT_MAIL` setzen.
+* Statistikdienst buchen und die zwei Variablen eintragen (der Code steht).
 * Test auf echten Geräten (iPhone, Android) und ein Durchlauf mit einer
   Person, die die App nicht kennt.
 

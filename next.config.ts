@@ -22,6 +22,20 @@ import type { NextConfig } from "next";
  */
 const entwicklung = process.env.NODE_ENV !== "production";
 
+/**
+ * Herkunft des Statistikdienstes, falls einer eingerichtet ist. Nur dieser
+ * eine Ursprung wird zusätzlich erlaubt – die Regel bleibt sonst so eng wie
+ * zuvor, statt pauschal fremde Skripte zuzulassen.
+ */
+const statistik = (() => {
+  try {
+    const url = process.env.NEXT_PUBLIC_STATISTIK_URL?.trim();
+    return url ? " " + new URL(url).origin : "";
+  } catch {
+    return "";
+  }
+})();
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -30,7 +44,7 @@ const csp = [
   // Die Seite darf nirgends eingebettet werden (Clickjacking)
   "frame-ancestors 'none'",
   "object-src 'none'",
-  `script-src 'self' 'unsafe-inline'${entwicklung ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline'${entwicklung ? " 'unsafe-eval'" : ""}${statistik}`,
   // Inline-Styles nutzt sowohl Next.js als auch die Live-Skizze
   "style-src 'self' 'unsafe-inline'",
   // Firmenlogos kommen als data:-URL aus dem Browser des Nutzers
@@ -38,7 +52,7 @@ const csp = [
   "font-src 'self' data:",
   // Nur eigene API-Aufrufe; die Zahlung ist eine Weiterleitung, kein fetch.
   // In der Entwicklung zusätzlich der WebSocket des Hot Reload.
-  `connect-src 'self'${entwicklung ? " ws: wss:" : ""}`,
+  `connect-src 'self'${entwicklung ? " ws: wss:" : ""}${statistik}`,
   // PDFs werden als Blob im selben Ursprung geöffnet
   "worker-src 'self' blob:",
   "upgrade-insecure-requests",

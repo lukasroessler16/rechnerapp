@@ -341,12 +341,18 @@ kosten – sie sind in `scripts/test-betrieb.ts` festgehalten:
 * **Kein stiller Gratis-Betrieb.** Fehlt in Produktion der Stripe-Schlüssel,
   schlägt der Checkout fehl (`lib/betrieb.ts`). Früher wurden die Dokumente in
   diesem Fall verschenkt, ohne dass es jemand gemerkt hätte.
-* **Fehler nach der Zahlung sind Alarmfälle.** `/api/dokumente` meldet sie mit
-  der Stufe `kritisch` samt Zahlungsreferenz. In den Vercel-Logs lässt sich
-  darauf filtern (`"schwere":"kritisch"`); sobald ein Fehlerdienst wie Sentry
-  eingerichtet ist, wird er **nur** in `melde()` ergänzt. Der Kunde sieht nie
-  eine interne Fehlermeldung, sondern einen verständlichen Satz mit der
-  Kontaktadresse aus `NEXT_PUBLIC_KONTAKT_MAIL`.
+* **Fehler nach der Zahlung lösen einen Alarm aus.** `/api/dokumente` meldet
+  sie mit der Stufe `kritisch` samt Zahlungsreferenz, und `melde()` schickt
+  dann eine E-Mail an `ALARM_MAIL` (ersatzweise `NEXT_PUBLIC_KONTAKT_MAIL`).
+  Bewusst eine Mail und kein Fehlerdienst: Bei ein paar Verkäufen am Tag ist
+  ein Dashboard, in das niemand schaut, kein Sicherheitsnetz – eine Mail
+  erreicht den Betreiber am Telefon. Gleiche Meldungen werden zehn Minuten
+  lang zusammengefasst, damit ein kaputtes Deployment nicht hundert Mails
+  auslöst; protokolliert wird trotzdem jeder Fall (in den Vercel-Logs
+  filterbar über `"schwere":"kritisch"`). Der Kunde sieht nie eine interne
+  Fehlermeldung, sondern einen verständlichen Satz mit der Kontaktadresse.
+  Wächst das Aufkommen, kann in `melde()` zusätzlich Sentry angebunden
+  werden – alle Aufrufstellen bleiben unverändert.
 * **Bezahlte Links bleiben nachvollziehbar.** Jede Zahlung speichert die
   Formatversion der Projektdaten und den Code-Stand (`lib/version.ts`). Der
   Code-Stand steht auch klein auf jedem PDF. Ändern sich später die
@@ -357,6 +363,27 @@ kosten – sie sind in `scripts/test-betrieb.ts` festgehalten:
 
 Dazu kommen ein Rate-Limit je IP und Route (`lib/ratelimit.ts`) und
 Schutz-Header inklusive Content-Security-Policy (`next.config.ts`).
+
+## 8c. Nutzungsstatistik (optional)
+
+Ohne Zahlen ist nicht erkennbar, ob Interessenten schon bei den Maßen
+aussteigen oder erst an der Bezahlseite – und rückwirkend lassen sie sich nicht
+erheben. `lib/statistik.ts` meldet deshalb vier Ereignisse: `schritt` (welcher
+Schritt erreicht wurde, mit Bauteil), `checkout_gestartet` (mit Bauteil und
+Regelwerk), `dokument_geladen` und `dokument_fehler`.
+
+Bewusst an keinen Anbieter gebunden: Erwartet wird die cookiefreie Zählweise
+von Plausible oder Umami. Eingeschaltet wird über zwei Variablen –
+`NEXT_PUBLIC_STATISTIK_URL` (Adresse des Zählskripts) und
+`NEXT_PUBLIC_STATISTIK_DOMAIN` (Website-Kennung). Fehlen sie, wird nichts
+geladen und jedes Ereignis verpufft folgenlos. Ist eine Adresse gesetzt, nimmt
+die Content-Security-Policy genau diesen einen Ursprung zusätzlich auf.
+
+Erfasst werden weder Maße noch Firmendaten, Adressen oder Beträge – nur der
+erreichte Schritt und die Auswahl von Bauteil und Regelwerk. Da beide Dienste
+keine Cookies setzen und keine IP-Adressen speichern, ist kein
+Einwilligungsbanner nötig; der Dienst gehört trotzdem in die
+Datenschutzerklärung.
 
 ## 9. Vor dem Live-Gang
 

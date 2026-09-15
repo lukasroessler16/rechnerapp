@@ -10,6 +10,7 @@
  */
 
 import { Suspense, useState } from "react";
+import { ereignis } from "@/lib/statistik";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -72,8 +73,13 @@ function ErfolgInhalt() {
       a.download = typ.charAt(0).toUpperCase() + typ.slice(1) + ".pdf";
       a.click();
       URL.revokeObjectURL(url);
+      ereignis("dokument_geladen", { typ, bezahlt: demo ? "demo" : "ja" });
     } catch (e) {
       setFehler(e instanceof Error ? e.message : "Unbekannter Fehler.");
+      // Ein Fehler HIER ist der teuerste Fall: Es wurde bezahlt und es kommt
+      // nichts an. Der Server meldet ihn ohnehin als kritisch; die Zählung
+      // zeigt, ob es ein Einzelfall ist oder ein Muster.
+      ereignis("dokument_fehler", { typ });
     } finally {
       setLaedt(null);
     }
