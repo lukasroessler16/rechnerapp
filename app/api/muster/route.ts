@@ -1,15 +1,19 @@
 /**
- * GET /api/muster?typ=bauplan|biegeliste|stueckliste
+ * GET /api/muster?typ=bauplan|biegeliste|stueckliste&bauteil=<kennung>
  *
  * Liefert eines der drei Dokumente mit Beispieldaten – kostenlos und ohne
- * Zahlung. Damit können Interessenten vor dem Kauf sehen, was sie bekommen.
+ * Zahlung. Damit können Interessenten vor dem Kauf sehen, was sie bekommen,
+ * und zwar für jedes Bauteil: Wer eine Stützmauer rechnen will, hat wenig
+ * davon, nur einen Wandplan zu sehen. Ohne bauteil-Parameter kommt die Wand.
  *
  * Bewusst dieselbe Erzeugungslogik wie bei den Kundendokumenten: Die Muster
- * bleiben dadurch automatisch aktuell, wenn sich das Layout ändert.
+ * bleiben dadurch automatisch aktuell, wenn sich Layout oder Rechenregeln
+ * ändern.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { MUSTERPROJEKT } from "@/lib/muster";
+import { musterProjekt } from "@/lib/muster";
+import { bauteilModul, istBauteil } from "@/lib/bauteile";
 import { berechneBewehrung } from "@/lib/bewehrung";
 import { erzeugeBauplan } from "@/lib/pdf/bauplan";
 import { erzeugeBiegeliste } from "@/lib/pdf/biegeliste";
@@ -20,9 +24,9 @@ import { pruefeLimit } from "@/lib/ratelimit";
 export const runtime = "nodejs";
 
 const DATEINAMEN: Record<string, string> = {
-  bauplan: "Muster-Bauplan.pdf",
-  biegeliste: "Muster-Biegeliste.pdf",
-  stueckliste: "Muster-Stueckliste.pdf",
+  bauplan: "Bauplan",
+  biegeliste: "Biegeliste",
+  stueckliste: "Stueckliste",
 };
 
 export async function GET(req: NextRequest) {
@@ -40,20 +44,34 @@ export async function GET(req: NextRequest) {
   if (!DATEINAMEN[typ])
     return NextResponse.json({ fehler: "Unbekannter Dokumenttyp." }, { status: 400 });
 
+  const gewuenscht = req.nextUrl.searchParams.get("bauteil") ?? "wand";
+  if (!istBauteil(gewuenscht))
+    return NextResponse.json({ fehler: "Unbekanntes Bauteil." }, { status: 400 });
+
   try {
-    const ergebnis = berechneBewehrung(MUSTERPROJEKT);
+    const projekt = musterProjekt(gewuenscht);
+    const ergebnis = berechneBewehrung(projekt);
     const pdf =
       typ === "bauplan"
-        ? await erzeugeBauplan(MUSTERPROJEKT, ergebnis)
+        ? await erzeugeBauplan(projekt, ergebnis)
         : typ === "biegeliste"
-          ? await erzeugeBiegeliste(MUSTERPROJEKT, ergebnis)
-          : await erzeugeStueckliste(MUSTERPROJEKT, ergebnis);
+          ? await erzeugeBiegeliste(projekt, ergebnis)
+          : await erzeugeStueckliste(projekt, ergebnis);
+
+    // Dateiname mit Bauteil: Wer sich mehrere Muster ansieht, findet sie
+    // im Download-Ordner sonst nicht mehr auseinander.
+    const datei = `Muster-${DATEINAMEN[typ]}-${bauteilModul(gewuenscht).name}.pdf`
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .replace(/[^A-Za-z0-9.\-]/g, "-");
 
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
         // "inline": öffnet direkt im Browser statt herunterzuladen
-        "Content-Disposition": `inline; filename="${DATEINAMEN[typ]}"`,
+        "Content-Disposition": `inline; filename="${datei}"`,
         // Muster ändern sich selten – eine Stunde zwischenspeichern
         "Cache-Control": "public, max-age=3600",
       },
@@ -61,7 +79,7 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     // Ein kaputtes Muster heißt: Die Musterdokumente auf /beispiele sind
     // kaputt – das sieht jeder Interessent vor dem Kauf.
-    melde("muster", e, { typ });
+    melde("muster", e, { typ, bauteil: gewuenscht });
     const { text, status } = kundenMeldung(e);
     return NextResponse.json({ fehler: text }, { status });
   }

@@ -6,13 +6,16 @@ import {
   VorschauBiegeliste,
   VorschauStueckliste,
 } from "@/components/DokumentVorschau";
-import { MUSTERPROJEKT } from "@/lib/muster";
+import { Detailbild } from "@/components/DetailBilder";
+import { MUSTERPROJEKT, musterProjekt } from "@/lib/muster";
 import { berechneBewehrung } from "@/lib/bewehrung";
+import { BAUTEILE } from "@/lib/bauteile";
+import { DEUTSCHLAND, OESTERREICH, cnomAusExposition } from "@/lib/regelwerk";
 
 export const metadata: Metadata = {
   title: "Beispiele & Musterdokumente – Rösch Bewehrungsrechner",
   description:
-    "Bauplan, Biegeliste und Stückliste als Muster ansehen, dazu die fachlichen Grundlagen der Berechnung nach Eurocode 2 (ÖNORM B 1992-1-1 bzw. DIN EN 1992-1-1/NA).",
+    "Musterdokumente für alle acht Bauteile ansehen, dazu die fachlichen Grundlagen der Berechnung nach Eurocode 2 (ÖNORM B 1992-1-1 bzw. DIN EN 1992-1-1/NA) und der Unterschied zwischen österreichischem und deutschem Anhang.",
 };
 
 /**
@@ -21,6 +24,78 @@ export const metadata: Metadata = {
  */
 export default function Beispiele() {
   const ergebnis = berechneBewehrung(MUSTERPROJEKT);
+
+  /**
+   * Kennzahlen je Bauteil – aus denselben Modulen gerechnet wie der Wizard,
+   * mit den Werten, die dort vorbelegt sind. Die Übersicht kann dadurch nicht
+   * veralten: Kommt ein Bauteil dazu, steht es hier automatisch mit.
+   */
+  const bauteile = BAUTEILE.map((modul) => {
+    const projekt = musterProjekt(modul.id);
+    const erg = berechneBewehrung(projekt);
+    return {
+      modul,
+      masse: modul.masseText(projekt),
+      gewicht: erg.gesamtgewicht,
+      positionen: erg.positionen.length,
+    };
+  });
+
+  /**
+   * Der Regelwerksunterschied an der Musterwand – dieselbe Wand, einmal nach
+   * ÖNORM und einmal nach DIN gerechnet. Angeschrieben werden die tatsächlich
+   * gerechneten Werte, nicht abgetippte.
+   */
+  const wandNachDIN = {
+    ...MUSTERPROJEKT,
+    parameter: {
+      ...MUSTERPROJEKT.parameter,
+      regelwerk: "de",
+      stahlguete: "B500B",
+      betondeckung: cnomAusExposition(DEUTSCHLAND, MUSTERPROJEKT.parameter.expositionsklasse),
+    },
+  };
+  const ergebnisDIN = berechneBewehrung(wandNachDIN);
+  const nk4 = { minimumFractionDigits: 4, maximumFractionDigits: 4 };
+  const vergleich = [
+    {
+      merkmal: "Betonstahl",
+      at: `${MUSTERPROJEKT.parameter.stahlguete} (${OESTERREICH.betonstahlNorm})`,
+      de: `${wandNachDIN.parameter.stahlguete} (${DEUTSCHLAND.betonstahlNorm})`,
+    },
+    {
+      merkmal: "Streckgrenze f_yk",
+      at: `${OESTERREICH.stahlsorten[0].fyk} N/mm²`,
+      de: `${DEUTSCHLAND.stahlsorten[0].fyk} N/mm²`,
+    },
+    {
+      merkmal: `Betondeckung c_nom (${MUSTERPROJEKT.parameter.expositionsklasse})`,
+      at: `${cnomAusExposition(OESTERREICH, MUSTERPROJEKT.parameter.expositionsklasse)} mm`,
+      de: `${cnomAusExposition(DEUTSCHLAND, MUSTERPROJEKT.parameter.expositionsklasse)} mm`,
+    },
+    {
+      merkmal: "Mindestbewehrung Wand (vertikal)",
+      // vier Nachkommastellen: sonst rundet die Anzeige 0,0015 auf 0,002 und
+      // der Unterschied, um den es hier geht, verschwindet
+      at: `${OESTERREICH.wandVertikalFaktor.toLocaleString("de-AT", nk4)} · Ac`,
+      de: `${DEUTSCHLAND.wandVertikalFaktor.toLocaleString("de-AT", nk4)} · Ac`,
+    },
+    {
+      merkmal: "daraus erforderlich je Lage",
+      at: `${ergebnis.kennwerte.asMinHaupt.toLocaleString("de-AT")} cm²/m`,
+      de: `${ergebnisDIN.kennwerte.asMinHaupt.toLocaleString("de-AT")} cm²/m`,
+    },
+    {
+      merkmal: "gewählte Lagermatte",
+      at: ergebnis.kennwerte.gewaehlteMatte,
+      de: ergebnisDIN.kennwerte.gewaehlteMatte,
+    },
+    {
+      merkmal: "Baustahl gesamt",
+      at: `${ergebnis.gesamtgewicht.toLocaleString("de-AT")} kg`,
+      de: `${ergebnisDIN.gesamtgewicht.toLocaleString("de-AT")} kg`,
+    },
+  ];
 
   return (
     <main className="start">
@@ -34,6 +109,69 @@ export default function Beispiele() {
           Alle Muster stammen aus einem einzigen Beispielbauteil und werden mit
           demselben Programm erzeugt wie Ihre späteren Dokumente. Was Sie hier
           sehen, ist also genau das, was Sie bekommen.
+        </p>
+      </section>
+
+      {/* ---------------- Alle Bauteile ---------------- */}
+      <section className="start-block">
+        <h3>Diese Bauteile kann der Rechner</h3>
+        <p className="start-blocktext">
+          Jeweils ein Bauteil je Berechnung. Die angegebenen Mengen sind die
+          Ergebnisse der Standardwerte, die im Rechner schon eingetragen sind –
+          Sie sehen also, womit Sie starten, bevor Sie irgendetwas eingeben.
+        </p>
+        <div className="bauteil-liste">
+          {bauteile.map((b) => (
+            <article className="bauteil-karte" key={b.modul.id}>
+              <div className="bauteil-bild">
+                <Detailbild bildId={b.modul.bildId} />
+              </div>
+              <div className="bauteil-text">
+                <h4>{b.modul.name}</h4>
+                <p className="bauteil-was">{b.modul.beschreibung}</p>
+                <p className="bauteil-masse">{b.masse}</p>
+                <p className="bauteil-menge">
+                  <strong>{b.gewicht.toLocaleString("de-AT")} kg</strong> in{" "}
+                  {b.positionen} Positionen
+                </p>
+                <p className="bauteil-muster">
+                  Muster:{" "}
+                  <a
+                    href={`/api/muster?typ=bauplan&bauteil=${b.modul.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Bauplan
+                  </a>
+                  {" · "}
+                  <a
+                    href={`/api/muster?typ=biegeliste&bauteil=${b.modul.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Biegeliste
+                  </a>
+                  {" · "}
+                  <a
+                    href={`/api/muster?typ=stueckliste&bauteil=${b.modul.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Stückliste
+                  </a>
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+        <p className="bauteil-fussnote">
+          Damit nichts doppelt gezählt wird, gehört jede Anschlussbewehrung
+          genau einem Bauteil: Die Anschlusseisen zwischen Wand und Bodenplatte
+          liegen bei der Wand, die Verbindung von Decke zu Unterzug bei der
+          Deckenplatte, der Stützenanschluss bei der Stütze. Jedes Dokument
+          schreibt an, was bei ihm enthalten ist und was beim Nachbarbauteil
+          liegt – so lassen sich die Mengen mehrerer Bauteile bedenkenlos
+          addieren.
         </p>
       </section>
 
@@ -146,6 +284,54 @@ export default function Beispiele() {
         </div>
       </section>
 
+      {/* ---------------- Regelwerk Österreich / Deutschland ---------------- */}
+      <section className="start-block">
+        <h3>Österreich oder Deutschland</h3>
+        <p className="start-blocktext">
+          Gerechnet wird in beiden Ländern nach demselben Eurocode 2 – die
+          Nationalen Anhänge legen aber unterschiedliche Zahlenwerte fest. Ein
+          Umschalter im Schritt „Parameter“ stellt das um, und er ändert
+          tatsächlich die Rechnung, nicht nur die Beschriftung. Unten dieselbe
+          Musterwand, einmal nach jedem Anhang gerechnet.
+        </p>
+        <div className="vergleich-rahmen">
+          <table className="vergleich">
+            <thead>
+              <tr>
+                <th scope="col">Merkmal</th>
+                <th scope="col">
+                  Österreich
+                  <span>{OESTERREICH.normKurz}</span>
+                </th>
+                <th scope="col">
+                  Deutschland
+                  <span>{DEUTSCHLAND.normKurz}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {vergleich.map((z) => (
+                <tr key={z.merkmal}>
+                  <th scope="row">{z.merkmal}</th>
+                  <td>{z.at}</td>
+                  <td>{z.de}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="bauteil-fussnote">
+          Dass die deutsche Wand hier weniger Stahl braucht, liegt an der
+          geringeren Mindestbewehrung des deutschen Anhangs; bei Platten dreht
+          sich das Verhältnis um, weil dort die niedrigere Streckgrenze des
+          B500 mehr Querschnitt verlangt. Wo beide Anhänge übereinstimmen oder
+          sich nur in lastabhängigen Anteilen unterscheiden, die dieses
+          Werkzeug ohnehin nicht rechnet, wird bewusst nicht unterschieden. Der
+          gewählte Anhang steht auf jedem Plan, in jeder Liste und in jedem
+          Hinweis.
+        </p>
+      </section>
+
       {/* ---------------- Fachliche Basis ---------------- */}
       <section className="start-block">
         <h3>Worauf die Berechnung beruht</h3>
@@ -217,8 +403,34 @@ export default function Beispiele() {
           <div>
             <h4>Welche Bauteile sind möglich?</h4>
             <p>
-              Stahlbetonwände sowie Decken und Bodenplatten, jeweils mit
-              beliebig vielen Fenstern, Türen oder Aussparungen.
+              Acht: Wand, Deckenplatte, Bodenplatte, Stütze, Träger, Streifen-
+              und Einzelfundament sowie Stützmauer. Wand und Deckenplatte
+              nehmen beliebig viele Fenster, Türen und Aussparungen auf.
+            </p>
+          </div>
+          <div>
+            <h4>Kann ich nach deutscher Norm rechnen?</h4>
+            <p>
+              Ja. Im Schritt „Parameter“ stellen Sie zwischen ÖNORM
+              B 1992-1-1 und DIN EN 1992-1-1/NA um – das ändert Betonstahl,
+              Betondeckung, Mindestbewehrung und die Normangaben in allen
+              Dokumenten.
+            </p>
+          </div>
+          <div>
+            <h4>Ich bin nicht vom Fach – komme ich damit zurecht?</h4>
+            <p>
+              Alle Felder sind sinnvoll vorbelegt, und neben jedem Fachbegriff
+              steht ein Fragezeichen, das ihn in Alltagssprache erklärt.
+              Prüfen lassen müssen Sie das Ergebnis trotzdem.
+            </p>
+          </div>
+          <div>
+            <h4>Kann ich mehrere Bauteile zusammenrechnen?</h4>
+            <p>
+              Ja, Bauteil für Bauteil – und die Mengen lassen sich addieren,
+              ohne dass etwas doppelt gezählt wird. Firmendaten und Logo
+              bleiben dabei für den nächsten Durchlauf erhalten.
             </p>
           </div>
           <div>

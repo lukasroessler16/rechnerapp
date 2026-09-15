@@ -704,3 +704,97 @@ td.zahl, th.zahl { text-align: right; }
   .willkommen h2 { font-size: 25px; }
   .willkommen-knoepfe .knopf { flex: 1 1 100%; text-align: center; }
 }
+
+/* ---------- Bauteilübersicht auf der Beispiele-Seite ---------- */
+.bauteil-liste {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.bauteil-karte {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 14px;
+}
+.bauteil-bild {
+  flex: 0 0 76px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfc;
+  padding: 5px;
+}
+.bauteil-bild svg { width: 100%; height: auto; display: block; }
+.bauteil-text { min-width: 0; }
+.bauteil-text h4 { margin: 0 0 3px; font-size: 15.5px; }
+.bauteil-was { margin: 0 0 6px; font-size: 13px; color: var(--ink-soft); }
+.bauteil-masse {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
+}
+.bauteil-menge { margin: 2px 0 8px; font-size: 13px; }
+.bauteil-muster { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+.bauteil-muster a { font-weight: 600; }
+.bauteil-fussnote {
+  margin: 16px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  max-width: 82ch;
+}
+
+/* ---------- Regelwerksvergleich ---------- */
+.vergleich-rahmen {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  overflow-x: auto;
+}
+table.vergleich {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+table.vergleich th,
+table.vergleich td {
+  text-align: left;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+}
+table.vergleich thead th {
+  background: #fafbfc;
+  font-size: 13px;
+  vertical-align: bottom;
+}
+table.vergleich thead th span {
+  display: block;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+table.vergleich tbody th {
+  font-weight: 500;
+  color: var(--ink-soft);
+  width: 40%;
+}
+table.vergleich td {
+  font-variant-numeric: tabular-nums;
+}
+table.vergleich tbody tr:last-child th,
+table.vergleich tbody tr:last-child td {
+  border-bottom: 0;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .bauteil-liste { grid-template-columns: 1fr; }
+}

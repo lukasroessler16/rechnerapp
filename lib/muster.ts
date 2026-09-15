@@ -8,6 +8,7 @@
  */
 
 import { Projekt } from "./types";
+import { bauteilModul, standardDetails, standardMasse } from "./bauteile";
 
 export const MUSTERPROJEKT: Projekt = {
   bauteil: "wand",
@@ -40,3 +41,45 @@ export const MUSTERPROJEKT: Projekt = {
     datum: "2026-01-15",
   },
 };
+
+/**
+ * Bauvorhaben-Bezeichnungen der Muster je Bauteil.
+ *
+ * Realistische Bezeichnungen statt „Beispiel 1“: Wer ein Muster öffnet, soll
+ * ein Blatt sehen, wie es auf einer Baustelle liegen könnte.
+ */
+const MUSTER_VORHABEN: Record<string, string> = {
+  wand: "Musterprojekt – Kellerwand W1",
+  deckenplatte: "Musterprojekt – Decke über EG, Feld D3",
+  bodenplatte: "Musterprojekt – Bodenplatte Keller",
+  stuetze: "Musterprojekt – Stütze S2, Erdgeschoss",
+  traeger: "Musterprojekt – Unterzug U1 über Wohnraum",
+  streifenfundament: "Musterprojekt – Streifenfundament Außenwand",
+  einzelfundament: "Musterprojekt – Einzelfundament unter Stütze S2",
+  stuetzmauer: "Musterprojekt – Stützmauer Grundstücksgrenze",
+};
+
+/**
+ * Musterprojekt zu einem beliebigen Bauteil.
+ *
+ * Für die Wand ist das MUSTERPROJEKT mit seinen Öffnungen; alle anderen
+ * Bauteile werden aus ihren eigenen Standardwerten aufgebaut. Dadurch zeigen
+ * die Muster immer genau das, was jemand sieht, der den Rechner öffnet und
+ * nichts verstellt – und sie können nie veralten, weil sie aus demselben
+ * Register stammen wie der Wizard.
+ */
+export function musterProjekt(bauteilId: string): Projekt {
+  if (bauteilId === MUSTERPROJEKT.bauteil) return MUSTERPROJEKT;
+  const modul = bauteilModul(bauteilId);
+  return {
+    ...MUSTERPROJEKT,
+    bauteil: modul.id,
+    masse: standardMasse(modul),
+    details: standardDetails(modul),
+    oeffnungen: [],
+    firmendaten: {
+      ...MUSTERPROJEKT.firmendaten,
+      bauvorhaben: MUSTER_VORHABEN[modul.id] ?? `Musterprojekt – ${modul.name}`,
+    },
+  };
+}
