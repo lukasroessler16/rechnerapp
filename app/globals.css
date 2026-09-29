@@ -798,3 +798,41 @@ table.vergleich tbody tr:last-child td {
 @media (max-width: 640px) {
   .bauteil-liste { grid-template-columns: 1fr; }
 }
+
+/* ---------- Fortschritt des automatischen Downloads (Erfolgsseite) ---------- */
+.ladestand {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: #fff8f3;
+  padding: 14px 16px;
+  margin: 16px 0 4px;
+}
+.ladestand.fertig {
+  border-left-color: var(--ok);
+  background: #f2f9f4;
+}
+.ladestand > strong { display: block; font-size: 14.5px; margin-bottom: 8px; }
+.ladestand ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.ladestand li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13.5px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+.ladestand li:last-child { border-bottom: 0; }
+.ladestand .stand-wort { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; }
+.ladestand li.stand-laeuft .stand-wort { color: var(--warn); }
+.ladestand li.stand-fertig .stand-wort { color: var(--ok); font-weight: 600; }
+.ladestand li.stand-fehler .stand-wort { color: var(--fehler); font-weight: 600; }
+.ladestand li.stand-fertig span:first-child { color: var(--ink); }
+.ladestand li.stand-offen span:first-child { color: var(--ink-soft); }
