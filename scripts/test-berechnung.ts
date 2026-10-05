@@ -10,7 +10,15 @@ import { berechneBewehrung, oeffnungsDetails } from "../lib/bewehrung";
 import { MATTEN_STOESSE, MATTEN_STOSS_STANDARD } from "../lib/normdaten";
 import { projektZuMetadata, metadataZuProjekt } from "../lib/payload";
 import { pruefeProjekt } from "../lib/validierung";
-import { BAUTEILE, bauteilModul, standardDetails, standardMasse } from "../lib/bauteile";
+import {
+  BAUTEILE,
+  KATEGORIEN,
+  bauteilModul,
+  bauteileDerKategorie,
+  istKategorie,
+  standardDetails,
+  standardMasse,
+} from "../lib/bauteile";
 import { nachGruppen } from "../lib/gruppen";
 import { STANDARD_GRUPPE } from "../lib/bauteile/sammler";
 import { Projekt } from "../lib/types";
@@ -696,6 +704,37 @@ for (const erg of [mitLoechern, ohneLoecher]) {
     );
 }
 console.log("Eigengewicht liegt im Rahmen des pauschalen Normansatzes von 25 kN/m³");
+
+/* ------------------------------------------------------------------ */
+/* 9c2) Kategorien der Bauteilwahl                                      */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Kategorien ===");
+
+{
+  // Jedes Bauteil muss in einer bekannten Kategorie liegen – sonst wäre es
+  // in der Auswahl unsichtbar, obwohl es das Register kennt.
+  const verwaist = BAUTEILE.filter((b) => !istKategorie(b.kategorie));
+  if (verwaist.length)
+    throw new Error(
+      `Bauteile ohne gültige Kategorie: ${verwaist.map((b) => `${b.id} (${b.kategorie})`).join(", ")}`
+    );
+
+  // Keine leere Kategorie: eine Überschrift ohne Inhalt sieht nach Fehler aus.
+  const leer = KATEGORIEN.filter((k) => bauteileDerKategorie(k.id).length === 0);
+  if (leer.length)
+    throw new Error(`Kategorien ohne Bauteile: ${leer.map((k) => k.id).join(", ")}`);
+
+  // Die Kategorien müssen zusammen genau alle Bauteile ergeben
+  const summe = KATEGORIEN.reduce((a, k) => a + bauteileDerKategorie(k.id).length, 0);
+  if (summe !== BAUTEILE.length)
+    throw new Error(`Kategorien decken ${summe} von ${BAUTEILE.length} Bauteilen ab.`);
+
+  for (const k of KATEGORIEN)
+    console.log(
+      `${k.name.padEnd(20)} ${bauteileDerKategorie(k.id).map((b) => b.name).join(", ")}`
+    );
+}
 
 /* ------------------------------------------------------------------ */
 /* 9d) Positionsgruppen                                                 */

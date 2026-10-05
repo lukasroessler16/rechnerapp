@@ -12,8 +12,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Oeffnung, Parameter, Projekt } from "@/lib/types";
 import {
-  BAUTEILE,
+  KATEGORIEN,
   bauteilModul,
+  bauteileDerKategorie,
   standardDetails,
   standardMasse,
 } from "@/lib/bauteile";
@@ -159,6 +160,15 @@ function MassFeld({
 /* ------------------------------------------------------------------ */
 
 export function Step1Bauteil({ projekt, set, nr }: StepProps) {
+  const modul = bauteilModul(projekt.bauteil);
+
+  /**
+   * Gewählte Kategorie. Vorbelegt mit der des aktuellen Bauteils, damit nach
+   * einem Schritt zurück dort steht, was man vorher gewählt hat – und nicht
+   * eine leere Auswahl, in der man sein Bauteil erst wiederfinden muss.
+   */
+  const [kategorie, setKategorie] = useState(modul.kategorie);
+
   /**
    * Beim Wechsel werden Maße und Details auf die Standardwerte des neuen
    * Bauteils gesetzt – die Feldschlüssel unterscheiden sich je Bauteil
@@ -167,24 +177,67 @@ export function Step1Bauteil({ projekt, set, nr }: StepProps) {
   const waehle = (id: string) =>
     set((p) => {
       if (p.bauteil === id) return p;
-      const modul = bauteilModul(id);
+      const neu = bauteilModul(id);
       return {
         ...p,
         bauteil: id,
-        masse: standardMasse(modul),
-        details: standardDetails(modul),
-        oeffnungen: modul.hatOeffnungen ? p.oeffnungen : [],
+        masse: standardMasse(neu),
+        details: standardDetails(neu),
+        oeffnungen: neu.hatOeffnungen ? p.oeffnungen : [],
       };
     });
+
+  const auswahl = bauteileDerKategorie(kategorie);
+  const aktuelle = KATEGORIEN.find((k) => k.id === kategorie);
 
   return (
     <>
       <h2 className="schritt-titel">{nr} · Bauteil wählen</h2>
       <p className="schritt-hilfe">
-        Für welches Bauteil soll die Bewehrung ermittelt werden?
+        Zuerst die Art des Bauteils, dann das Bauteil selbst. Je Berechnung ein
+        Bauteil – mehrere lassen sich nacheinander rechnen und addieren.
+      </p>
+
+      {/* Erste Stufe: Kategorie */}
+      <div className="kategorien" role="tablist" aria-label="Art des Bauteils">
+        {KATEGORIEN.map((k) => {
+          const aktiv = k.id === kategorie;
+          const enthaeltGewaehltes = modul.kategorie === k.id;
+          return (
+            <button
+              key={k.id}
+              type="button"
+              role="tab"
+              aria-selected={aktiv}
+              className={`kategorie${aktiv ? " aktiv" : ""}`}
+              onClick={() => setKategorie(k.id)}
+            >
+              <span className="kat-name">
+                {k.name}
+                {/* Punkt zeigt, in welcher Gruppe das gewählte Bauteil liegt */}
+                {enthaeltGewaehltes && <span className="kat-punkt" aria-hidden="true" />}
+              </span>
+              <span className="kat-text">{k.beschreibung}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Zweite Stufe: Bauteil innerhalb der Kategorie */}
+      <p className="kategorie-hilfe">
+        {aktuelle?.name}
+        {modul.kategorie !== kategorie && (
+          <>
+            {" · "}
+            <span className="kategorie-merker">
+              gewählt ist derzeit {modul.name} unter{" "}
+              {KATEGORIEN.find((k) => k.id === modul.kategorie)?.name}
+            </span>
+          </>
+        )}
       </p>
       <div className="karten">
-        {BAUTEILE.map((b) => (
+        {auswahl.map((b) => (
           <div
             key={b.id}
             className={`karte ${projekt.bauteil === b.id ? "gewaehlt" : ""}`}

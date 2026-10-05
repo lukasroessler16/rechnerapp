@@ -846,3 +846,86 @@ table.vergleich tbody tr:last-child td {
   padding-bottom: 5px;
   border-top: 1px solid var(--line);
 }
+
+/* ---------- Kategorien der Bauteilwahl ---------- */
+.kategorien {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.kategorie {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 9px 11px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: border-color 0.12s, background 0.12s;
+}
+.kategorie:hover { border-color: #adb5bd; }
+.kategorie.aktiv {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+.kategorie:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kategorie .kat-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.kategorie .kat-text { font-size: 11.5px; color: var(--ink-soft); }
+.kategorie.aktiv .kat-text { color: #c3cad4; }
+/* Punkt markiert die Gruppe, in der das derzeit gewählte Bauteil liegt */
+.kat-punkt {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+.kategorie-hilfe {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.kategorie-merker {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent);
+}
+
+@media (max-width: 520px) {
+  .kategorien { grid-template-columns: 1fr 1fr; }
+}
+
+/* Kategorie-Überschrift in der Bauteilübersicht (Beispiele-Seite) */
+.bauteil-kategorie {
+  margin: 22px 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 5px;
+}
+.bauteil-kategorie span {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+  margin-left: 8px;
+}

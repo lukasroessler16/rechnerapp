@@ -234,6 +234,7 @@ export const einzelfundament: Bauteilmodul = {
   id: "einzelfundament",
   name: "Einzelfundament",
   beschreibung: "Fundamentplatte unter einer einzelnen Stütze",
+  kategorie: "fundamente",
   bildId: "icon_einzelfundament",
   hatOeffnungen: false,
   flaechenbewehrt: false,

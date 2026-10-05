@@ -47,6 +47,7 @@ export const wand: Bauteilmodul = {
   id: "wand",
   name: "Wand",
   beschreibung: "Stahlbetonwand mit Fenster-/Türöffnungen",
+  kategorie: "waende",
   bildId: "icon_wand",
   hatOeffnungen: true,
   flaechenbewehrt: true,

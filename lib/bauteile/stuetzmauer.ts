@@ -300,6 +300,7 @@ export const stuetzmauer: Bauteilmodul = {
   id: "stuetzmauer",
   name: "Stützmauer",
   beschreibung: "Winkelstützmauer aus Stahlbeton, Bewehrung aus dem Erddruck",
+  kategorie: "waende",
   bildId: "icon_stuetzmauer",
   hatOeffnungen: false,
   flaechenbewehrt: false,

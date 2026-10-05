@@ -200,6 +200,12 @@ export interface Bauteilmodul {
   name: string;
   /** ein Satz zur Erklärung in der Bauteilwahl */
   beschreibung: string;
+  /**
+   * Kennung der Kategorie, unter der das Bauteil in der Auswahl steht
+   * (lib/bauteile/index.ts, KATEGORIEN). Pflichtangabe, damit ein neues
+   * Bauteil nicht aus der Gliederung herausfällt.
+   */
+  kategorie: string;
   /** Schlüssel des Icons in der Bauteilwahl (components/DetailBilder.tsx) */
   bildId: string;
   /** Hat dieses Bauteil Öffnungen (Schritt 3 des Wizards)? */

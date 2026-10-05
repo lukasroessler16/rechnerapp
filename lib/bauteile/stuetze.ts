@@ -190,6 +190,7 @@ export const stuetze: Bauteilmodul = {
   id: "stuetze",
   name: "Stütze",
   beschreibung: "Stahlbetonstütze mit Rechteckquerschnitt, Längsstäbe und Bügel",
+  kategorie: "staebe",
   bildId: "icon_stuetze",
   hatOeffnungen: false,
   flaechenbewehrt: false,

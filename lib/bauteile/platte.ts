@@ -72,6 +72,10 @@ function baue(art: PlattenArt): Bauteilmodul {
     id: art.id,
     name: art.name,
     beschreibung: art.beschreibung,
+    // Beide Plattenarten stehen in derselben Kategorie – auch die
+    // Bodenplatte, die zwar eine Flachgründung ist, aber wie eine Platte
+    // gesucht und gerechnet wird.
+    kategorie: "platten",
     bildId: art.bildId,
     hatOeffnungen: art.hatOeffnungen,
     flaechenbewehrt: true,

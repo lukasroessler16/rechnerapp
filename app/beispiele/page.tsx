@@ -9,7 +9,7 @@ import {
 import { Detailbild } from "@/components/DetailBilder";
 import { MUSTERPROJEKT, musterProjekt } from "@/lib/muster";
 import { berechneBewehrung } from "@/lib/bewehrung";
-import { BAUTEILE } from "@/lib/bauteile";
+import { BAUTEILE, KATEGORIEN } from "@/lib/bauteile";
 import { DEUTSCHLAND, OESTERREICH, cnomAusExposition } from "@/lib/regelwerk";
 
 export const metadata: Metadata = {
@@ -52,7 +52,10 @@ export default function Beispiele() {
       ...MUSTERPROJEKT.parameter,
       regelwerk: "de",
       stahlguete: "B500B",
-      betondeckung: cnomAusExposition(DEUTSCHLAND, MUSTERPROJEKT.parameter.expositionsklasse),
+      betondeckung: cnomAusExposition(
+        DEUTSCHLAND,
+        MUSTERPROJEKT.parameter.expositionsklasse,
+      ),
     },
   };
   const ergebnisDIN = berechneBewehrung(wandNachDIN);
@@ -120,50 +123,62 @@ export default function Beispiele() {
           Ergebnisse der Standardwerte, die im Rechner schon eingetragen sind –
           Sie sehen also, womit Sie starten, bevor Sie irgendetwas eingeben.
         </p>
-        <div className="bauteil-liste">
-          {bauteile.map((b) => (
-            <article className="bauteil-karte" key={b.modul.id}>
-              <div className="bauteil-bild">
-                <Detailbild bildId={b.modul.bildId} />
+        {/* nach denselben Kategorien gegliedert wie die Auswahl im Rechner */}
+        {KATEGORIEN.map((kat) => {
+          const inGruppe = bauteile.filter((b) => b.modul.kategorie === kat.id);
+          if (inGruppe.length === 0) return null;
+          return (
+            <div key={kat.id}>
+              <h4 className="bauteil-kategorie">
+                {kat.name} <span>{kat.beschreibung}</span>
+              </h4>
+              <div className="bauteil-liste">
+                {inGruppe.map((b) => (
+                  <article className="bauteil-karte" key={b.modul.id}>
+                    <div className="bauteil-bild">
+                      <Detailbild bildId={b.modul.bildId} />
+                    </div>
+                    <div className="bauteil-text">
+                      <h4>{b.modul.name}</h4>
+                      <p className="bauteil-was">{b.modul.beschreibung}</p>
+                      <p className="bauteil-masse">{b.masse}</p>
+                      <p className="bauteil-menge">
+                        <strong>{b.gewicht.toLocaleString("de-AT")} kg</strong>{" "}
+                        in {b.positionen} Positionen
+                      </p>
+                      <p className="bauteil-muster">
+                        Muster:{" "}
+                        <a
+                          href={`/api/muster?typ=bauplan&bauteil=${b.modul.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Bauplan
+                        </a>
+                        {" · "}
+                        <a
+                          href={`/api/muster?typ=biegeliste&bauteil=${b.modul.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Biegeliste
+                        </a>
+                        {" · "}
+                        <a
+                          href={`/api/muster?typ=stueckliste&bauteil=${b.modul.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Stückliste
+                        </a>
+                      </p>
+                    </div>
+                  </article>
+                ))}
               </div>
-              <div className="bauteil-text">
-                <h4>{b.modul.name}</h4>
-                <p className="bauteil-was">{b.modul.beschreibung}</p>
-                <p className="bauteil-masse">{b.masse}</p>
-                <p className="bauteil-menge">
-                  <strong>{b.gewicht.toLocaleString("de-AT")} kg</strong> in{" "}
-                  {b.positionen} Positionen
-                </p>
-                <p className="bauteil-muster">
-                  Muster:{" "}
-                  <a
-                    href={`/api/muster?typ=bauplan&bauteil=${b.modul.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Bauplan
-                  </a>
-                  {" · "}
-                  <a
-                    href={`/api/muster?typ=biegeliste&bauteil=${b.modul.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Biegeliste
-                  </a>
-                  {" · "}
-                  <a
-                    href={`/api/muster?typ=stueckliste&bauteil=${b.modul.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Stückliste
-                  </a>
-                </p>
-              </div>
-            </article>
-          ))}
-        </div>
+            </div>
+          );
+        })}
         <p className="bauteil-fussnote">
           Damit nichts doppelt gezählt wird, gehört jede Anschlussbewehrung
           genau einem Bauteil: Die Anschlusseisen zwischen Wand und Bodenplatte
@@ -323,12 +338,11 @@ export default function Beispiele() {
         <p className="bauteil-fussnote">
           Dass die deutsche Wand hier weniger Stahl braucht, liegt an der
           geringeren Mindestbewehrung des deutschen Anhangs; bei Platten dreht
-          sich das Verhältnis um, weil dort die niedrigere Streckgrenze des
-          B500 mehr Querschnitt verlangt. Wo beide Anhänge übereinstimmen oder
-          sich nur in lastabhängigen Anteilen unterscheiden, die dieses
-          Werkzeug ohnehin nicht rechnet, wird bewusst nicht unterschieden. Der
-          gewählte Anhang steht auf jedem Plan, in jeder Liste und in jedem
-          Hinweis.
+          sich das Verhältnis um, weil dort die niedrigere Streckgrenze des B500
+          mehr Querschnitt verlangt. Wo beide Anhänge übereinstimmen oder sich
+          nur in lastabhängigen Anteilen unterscheiden, die dieses Werkzeug
+          ohnehin nicht rechnet, wird bewusst nicht unterschieden. Der gewählte
+          Anhang steht auf jedem Plan, in jeder Liste und in jedem Hinweis.
         </p>
       </section>
 
@@ -339,8 +353,8 @@ export default function Beispiele() {
           <div>
             <p>
               Ermittelt wird die Mindestbewehrung nach Eurocode 2 (EN 1992-1-1)
-              in Verbindung mit dem gewählten Nationalen Anhang – ÖNORM
-              B 1992-1-1 oder DIN EN 1992-1-1/NA –, ergänzt um anerkannte
+              in Verbindung mit dem gewählten Nationalen Anhang – ÖNORM B
+              1992-1-1 oder DIN EN 1992-1-1/NA –, ergänzt um anerkannte
               Konstruktionsregeln des Stahlbetonbaus: Anschlussbewehrung im
               gewählten Raster, Eckwinkel, Steckbügel an freien Rändern, Sturz-,
               Brüstungs- und Laibungszulagen sowie Schrägstäbe an den
@@ -404,33 +418,32 @@ export default function Beispiele() {
             <h4>Welche Bauteile sind möglich?</h4>
             <p>
               Acht: Wand, Deckenplatte, Bodenplatte, Stütze, Träger, Streifen-
-              und Einzelfundament sowie Stützmauer. Wand und Deckenplatte
-              nehmen beliebig viele Fenster, Türen und Aussparungen auf.
+              und Einzelfundament sowie Stützmauer. Wand und Deckenplatte nehmen
+              beliebig viele Fenster, Türen und Aussparungen auf.
             </p>
           </div>
           <div>
             <h4>Kann ich nach deutscher Norm rechnen?</h4>
             <p>
-              Ja. Im Schritt „Parameter“ stellen Sie zwischen ÖNORM
-              B 1992-1-1 und DIN EN 1992-1-1/NA um – das ändert Betonstahl,
-              Betondeckung, Mindestbewehrung und die Normangaben in allen
-              Dokumenten.
+              Ja. Im Schritt „Parameter“ stellen Sie zwischen ÖNORM B 1992-1-1
+              und DIN EN 1992-1-1/NA um – das ändert Betonstahl, Betondeckung,
+              Mindestbewehrung und die Normangaben in allen Dokumenten.
             </p>
           </div>
           <div>
             <h4>Ich bin nicht vom Fach – komme ich damit zurecht?</h4>
             <p>
               Alle Felder sind sinnvoll vorbelegt, und neben jedem Fachbegriff
-              steht ein Fragezeichen, das ihn in Alltagssprache erklärt.
-              Prüfen lassen müssen Sie das Ergebnis trotzdem.
+              steht ein Fragezeichen, das ihn in Alltagssprache erklärt. Prüfen
+              lassen müssen Sie das Ergebnis trotzdem.
             </p>
           </div>
           <div>
             <h4>Kann ich mehrere Bauteile zusammenrechnen?</h4>
             <p>
               Ja, Bauteil für Bauteil – und die Mengen lassen sich addieren,
-              ohne dass etwas doppelt gezählt wird. Firmendaten und Logo
-              bleiben dabei für den nächsten Durchlauf erhalten.
+              ohne dass etwas doppelt gezählt wird. Firmendaten und Logo bleiben
+              dabei für den nächsten Durchlauf erhalten.
             </p>
           </div>
           <div>

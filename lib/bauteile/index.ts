@@ -18,6 +18,57 @@ import { streifenfundament } from "./streifenfundament";
 import { einzelfundament } from "./einzelfundament";
 import { stuetzmauer } from "./stuetzmauer";
 
+/**
+ * Kategorien der Bauteilwahl.
+ *
+ * Acht Bauteile in einer Reihe sind eine Liste, die man lesen muss; in vier
+ * Gruppen sind sie eine, die man überfliegt. Die Reihenfolge entspricht der
+ * Bauabfolge – von unten nach oben, wie auf der Baustelle.
+ *
+ * Die Bodenplatte steht bewusst bei den Platten und nicht bei den
+ * Fundamenten: Sie ist zwar eine Flachgründung, wird aber wie eine Platte
+ * gesucht und gerechnet. Verschieben wäre eine Zeile im jeweiligen Modul.
+ */
+export interface Kategorie {
+  id: string;
+  name: string;
+  /** ein Halbsatz, der die Gruppe einordnet */
+  beschreibung: string;
+}
+
+export const KATEGORIEN: Kategorie[] = [
+  {
+    id: "fundamente",
+    name: "Fundamente",
+    beschreibung: "Gründung unter Wänden und Stützen",
+  },
+  {
+    id: "platten",
+    name: "Decken und Platten",
+    beschreibung: "flächige Bauteile, liegend",
+  },
+  {
+    id: "waende",
+    name: "Wände",
+    beschreibung: "flächige Bauteile, stehend",
+  },
+  {
+    id: "staebe",
+    name: "Stützen und Träger",
+    beschreibung: "stabförmige Bauteile",
+  },
+];
+
+/** Gibt es diese Kategorie? */
+export function istKategorie(id: unknown): boolean {
+  return typeof id === "string" && KATEGORIEN.some((k) => k.id === id);
+}
+
+/** Alle Bauteile einer Kategorie, in der Reihenfolge des Registers */
+export function bauteileDerKategorie(id: string): Bauteilmodul[] {
+  return BAUTEILE.filter((b) => b.kategorie === id);
+}
+
 export const BAUTEILE: Bauteilmodul[] = [
   wand,
   deckenplatte,

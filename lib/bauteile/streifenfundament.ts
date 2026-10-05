@@ -244,6 +244,7 @@ export const streifenfundament: Bauteilmodul = {
   id: "streifenfundament",
   name: "Streifenfundament",
   beschreibung: "Fundamentstreifen unter einer durchgehenden Wand",
+  kategorie: "fundamente",
   bildId: "icon_streifenfundament",
   hatOeffnungen: false,
   flaechenbewehrt: false,

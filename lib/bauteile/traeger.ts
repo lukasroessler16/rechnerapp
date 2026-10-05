@@ -260,6 +260,7 @@ export const traeger: Bauteilmodul = {
   id: "traeger",
   name: "Träger",
   beschreibung: "Unterzug oder Balken mit Längsbewehrung und Bügeln",
+  kategorie: "staebe",
   bildId: "icon_traeger",
   hatOeffnungen: false,
   flaechenbewehrt: false,
