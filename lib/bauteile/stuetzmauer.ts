@@ -611,6 +611,7 @@ export const stuetzmauer: Bauteilmodul = {
     };
 
     /* ---- 1) Wandscheibe, erdseitige Vertikalbewehrung (Hauptbewehrung) ---- */
+    k.s.gruppe("Wandscheibe erdseitig");
     const nVert = imRaster(Math.max(0, w.l - 2 * w.cO), w.wandErd.s);
     const l0Erd = uebergreifung(w.wandErd.ds);
     k.s.stab(
@@ -625,6 +626,7 @@ export const stuetzmauer: Bauteilmodul = {
     );
 
     /* ---- 2) Wandscheibe, luftseitige Vertikalbewehrung ---- */
+    k.s.gruppe("Wandscheibe luftseitig");
     const nLuft = imRaster(Math.max(0, w.l - 2 * w.cO), w.wandLuft.s);
     k.s.stab(
       w.wandLuft.ds,
@@ -638,6 +640,7 @@ export const stuetzmauer: Bauteilmodul = {
     );
 
     /* ---- 3) Wandscheibe, Horizontalbewehrung beidseitig ---- */
+    k.s.gruppe("Wandscheibe horizontal");
     const hWand = laengsStab(w.wandHoriz.ds);
     const nHoriz = imRaster(Math.max(0, w.hw - 2 * w.cO), w.wandHoriz.s) * 2;
     k.s.stab(
@@ -652,6 +655,7 @@ export const stuetzmauer: Bauteilmodul = {
     );
 
     /* ---- 4) Fundament, Querbewehrung oben und unten ---- */
+    k.s.gruppe("Fundament quer");
     const auf = Math.max(0.08, Math.min(0.2, w.hf - w.cU - w.cO));
     const querLaenge = Math.max(0.2, w.bf - 2 * w.cU);
     for (const [lage, wahl, kurz] of [
@@ -671,6 +675,7 @@ export const stuetzmauer: Bauteilmodul = {
     }
 
     /* ---- 5) Fundament, Längsbewehrung oben und unten ---- */
+    k.s.gruppe("Fundament längs");
     const lStab = laengsStab(w.laengsDs);
     k.s.stab(
       w.laengsDs,

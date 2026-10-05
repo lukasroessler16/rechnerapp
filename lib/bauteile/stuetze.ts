@@ -351,6 +351,7 @@ export const stuetze: Bauteilmodul = {
     const l0 = uebergreifung(l.ds); // Übergreifungslänge ≈ 50·ds [m]
 
     /* ---- 1) Längsbewehrung ---- */
+    k.s.gruppe("Längsbewehrung");
     // Stäbe laufen von OK Anschluss bis Stützenkopf; beim Stoß nach oben
     // kommt die Übergreifungslänge dazu.
     const zuschlagKopf = kopf === "stuetze_weiter" ? l0 : 0;
@@ -365,6 +366,7 @@ export const stuetze: Bauteilmodul = {
     );
 
     /* ---- 2) Bügel ---- */
+    k.s.gruppe("Bügel");
     // geschlossener Rechteckbügel mit Haken 2 × 10·ds,w
     const haken = (2 * 10 * l.dsw) / 1000;
     k.s.stab(
@@ -377,6 +379,7 @@ export const stuetze: Bauteilmodul = {
     );
 
     /* ---- 3) Anschluss am Stützenfuß ---- */
+    k.s.gruppe("Anschluss Stützenfuß");
     if (fuss === "frei") {
       k.hinweise.push(
         "⚠ Stütze ohne Fußanschluss – Lagesicherheit und Einspannung statisch klären."

@@ -457,6 +457,7 @@ export const einzelfundament: Bauteilmodul = {
     for (const w of f.warnungen) k.hinweise.push(w);
 
     /* ---- 1) untere Bewehrung in beiden Richtungen ---- */
+    k.s.gruppe("Untere Bewehrung");
     for (const r of f.richtungen) {
       const seite = r.achse === "x" ? "Länge a" : "Breite b";
       k.s.stab(
@@ -472,6 +473,7 @@ export const einzelfundament: Bauteilmodul = {
     }
 
     /* ---- 2) obere Lage, falls vorgesehen ---- */
+    k.s.gruppe("Obere Bewehrung");
     if (f.obereLage) {
       for (const r of f.richtungen) {
         const seite = r.achse === "x" ? "Länge a" : "Breite b";
@@ -495,6 +497,7 @@ export const einzelfundament: Bauteilmodul = {
     }
 
     /* ---- 3) Anschluss der Stütze ---- */
+    k.s.gruppe("Anschluss Stütze");
     if (projekt.details.stuetze === "ortbeton")
       k.hinweise.push(
         "Die Steckeisen der Ortbetonstütze sind Teil des Bauteils „Stütze“ (dort: Steckeisen Stützenfuß) und in dieser Liste bewusst nicht enthalten, damit sie nicht doppelt bestellt werden."

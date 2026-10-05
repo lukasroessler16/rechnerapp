@@ -100,6 +100,11 @@ export const wand: Bauteilmodul = {
       optionen: [
         { wert: "ecke", titel: "Eckausbildung (Außen-/Innenecke)", bildId: "ecke" },
         { wert: "wandstoss", titel: "Wandstoß (T-Anschluss)", bildId: "wandstoss" },
+        {
+          wert: "wand_weiter",
+          titel: "Wand läuft weiter (Anschluss an bestehende Wand)",
+          bildId: "wand_weiter",
+        },
         { wert: "frei", titel: "freies Wandende", bildId: "freier_rand" },
       ],
     },
@@ -110,6 +115,11 @@ export const wand: Bauteilmodul = {
       optionen: [
         { wert: "ecke", titel: "Eckausbildung (Außen-/Innenecke)", bildId: "ecke" },
         { wert: "wandstoss", titel: "Wandstoß (T-Anschluss)", bildId: "wandstoss" },
+        {
+          wert: "wand_weiter",
+          titel: "Wand läuft weiter (Anschluss an bestehende Wand)",
+          bildId: "wand_weiter",
+        },
         { wert: "frei", titel: "freies Wandende", bildId: "freier_rand" },
       ],
     },
@@ -170,6 +180,7 @@ export const wand: Bauteilmodul = {
     const asMinQuer = asHminGesamt / k.lagen;
 
     /* ---- 2) Flächenbewehrung ---- */
+    k.s.gruppe("Flächenbewehrung");
     const flaecheBrutto = masse.laenge * masse.hoehe;
     const flaecheNetto = Math.max(
       0,
@@ -185,6 +196,7 @@ export const wand: Bauteilmodul = {
     });
 
     /* ---- 3) Anschlüsse an den Rändern ---- */
+    k.s.gruppe("Anschluss unten");
     if (details.unten === "frei") {
       k.hinweise.push("⚠ Wand ohne unteren Anschluss – Lagesicherheit statisch klären.");
       randeinfassung(k, masse.laenge, "unten", masse.dicke);
@@ -197,13 +209,17 @@ export const wand: Bauteilmodul = {
       );
     }
 
+    k.s.gruppe("Anschluss oben");
     if (details.oben === "decke_ueber")
       anschlusseisen(k, masse.laenge, "Decke oben", "Anschluss oben");
     else if (details.oben === "wand_weiter")
       stossEisen(k, masse.laenge, "Wand oben", "Stoß oben");
     else randeinfassung(k, masse.laenge, "oben", masse.dicke);
 
+    /** Seiten, an denen die Wand über eine Arbeitsfuge weiterläuft */
+    const seitlicheFugen: string[] = [];
     for (const seite of ["links", "rechts"] as const) {
+      k.s.gruppe(seite === "links" ? "Anschluss links" : "Anschluss rechts");
       const art = details[seite];
       if (art === "ecke") {
         k.s.stab(
@@ -214,9 +230,34 @@ export const wand: Bauteilmodul = {
           `Eckausbildung ${seite} (Eckwinkel Ø10/${k.abst / 10})`,
           `Ecke ${seite}`
         );
-      } else if (art === "wandstoss")
+      } else if (art === "wandstoss") {
         stossEisen(k, masse.hoehe, `Wandstoß ${seite}`, `Stoß ${seite}`);
-      else randeinfassung(k, masse.hoehe, seite, masse.dicke);
+      } else if (art === "wand_weiter") {
+        // Die Wand setzt sich jenseits einer Arbeitsfuge fort. Gerechnet wird
+        // die konservative, auf der Baustelle übliche Lösung: Anschlusseisen
+        // im gewählten Raster, die mit voller Übergreifungslänge beidseits
+        // der Fuge liegen.
+        stossEisen(
+          k,
+          masse.hoehe,
+          `Anschluss an bestehende Wand ${seite}`,
+          `Anschluss ${seite}`
+        );
+        seitlicheFugen.push(seite);
+      } else {
+        // "frei" – und alles Unbekannte, damit ein Rand nie unbewehrt bleibt
+        randeinfassung(k, masse.hoehe, seite, masse.dicke);
+      }
+    }
+
+    if (seitlicheFugen.length > 0) {
+      k.hinweise.push(
+        `Anschluss an bestehende Wand (${seitlicheFugen.join(" und ")}): Die Arbeitsfuge ist rau ` +
+          "auszubilden und zu säubern; die Anschlusseisen müssen in beiden Wandabschnitten mit " +
+          "voller Übergreifungslänge liegen. Ist der Nachbarabschnitt bereits betoniert und ragen " +
+          "keine Eisen heraus, ist die Bewehrung nachträglich einzubohren – dafür ist ein System " +
+          "mit bauaufsichtlicher Zulassung und der Nachweis der Verankerungstiefe erforderlich."
+      );
     }
 
     /* ---- 4) Öffnungsverstärkungen ---- */
@@ -224,6 +265,7 @@ export const wand: Bauteilmodul = {
     oeffnungen.forEach((o, i) => {
       const nr = i + 1;
       const marke = oeffnungsMarke(o, i);
+      k.s.gruppe(`Öffnung ${marke}`);
       const reichtBisOben = o.y + o.hoehe >= masse.hoehe - 0.01;
       const hatBruestung = o.y > 0.01;
 

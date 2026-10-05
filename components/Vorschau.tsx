@@ -9,7 +9,8 @@
  * über Stripe Checkout freigeschaltet.
  */
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
+import { nachGruppen } from "@/lib/gruppen";
 import { useRouter } from "next/navigation";
 import { ereignis } from "@/lib/statistik";
 import { Projekt } from "@/lib/types";
@@ -192,16 +193,26 @@ export default function Vorschau({
               </tr>
             </thead>
             <tbody>
-              {ergebnis.positionen.map((p) => (
-                <tr key={p.pos}>
-                  <td>{p.pos}</td>
-                  <td>{p.bezeichnung}</td>
-                  <td>{p.form ? FORM_KURZ[p.form] ?? p.form : "Matte"}</td>
-                  <td className="zahl">{p.laenge.toFixed(2)}</td>
-                  <td className="zahl">{p.stueck}</td>
-                  <td className="zahl">{p.gewichtGesamt.toFixed(1)}</td>
-                  <td>{p.verwendung}</td>
-                </tr>
+              {/* nach Gruppen gegliedert wie in der Stückliste */}
+              {nachGruppen(ergebnis.positionen).map((g) => (
+                <Fragment key={g.name}>
+                  <tr className="gruppenzeile">
+                    <td colSpan={5}>{g.name}</td>
+                    <td className="zahl">{g.gewicht.toFixed(1)}</td>
+                    <td>{g.anteil} %</td>
+                  </tr>
+                  {g.positionen.map((p) => (
+                    <tr key={p.pos}>
+                      <td>{p.pos}</td>
+                      <td>{p.bezeichnung}</td>
+                      <td>{p.form ? FORM_KURZ[p.form] ?? p.form : "Matte"}</td>
+                      <td className="zahl">{p.laenge.toFixed(2)}</td>
+                      <td className="zahl">{p.stueck}</td>
+                      <td className="zahl">{p.gewichtGesamt.toFixed(1)}</td>
+                      <td>{p.verwendung}</td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
             </tbody>
           </table>

@@ -17,6 +17,7 @@
  */
 
 import { deflateSync, inflateSync } from "zlib";
+import { MATTEN_STOSS_STANDARD, istMattenstoss } from "./normdaten";
 import { Projekt } from "./types";
 import { alleMassfelder, bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
 import { istRegelwerk, regelwerkVon, STANDARD_REGELWERK } from "./regelwerk";
@@ -162,6 +163,11 @@ export function validiereProjekt(p: unknown): Projekt {
     lagen: q.parameter?.lagen === 1 ? 1 : 2,
     matte: String(q.parameter?.matte ?? "auto"),
     stababstand: num(q.parameter?.stababstand ?? 250, 100, 400, "Stababstand"),
+    // Nur die angebotenen Stöße zulassen – ein frei gesetzter Wert könnte die
+    // Mattenzahl beliebig nach unten rechnen.
+    mattenstoss: istMattenstoss(q.parameter?.mattenstoss)
+      ? q.parameter.mattenstoss
+      : MATTEN_STOSS_STANDARD,
   };
 
   /* ---------- Firmendaten ---------- */

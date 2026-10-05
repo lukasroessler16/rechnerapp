@@ -8,6 +8,7 @@
  */
 
 import { PDFDocument } from "pdf-lib";
+import { nachGruppen } from "../gruppen";
 import { Ergebnis, Projekt } from "../types";
 import { bauteilModul } from "../bauteile";
 import { zeichneAnsichten } from "./ansicht";
@@ -95,6 +96,19 @@ export async function erzeugeBauplan(
   zeile(`davon Matten: ${de(ergebnis.mattenGewicht, 1)} kg`);
   zeile(`davon Stabstahl: ${de(ergebnis.stabstahlGewicht, 1)} kg`);
   iy -= 2;
+  // Aufteilung nach Gruppen: zeigt auf einen Blick, was ein Anschluss kostet
+  // und ob eine Öffnung die Menge treibt. Dieselbe Gliederung wie in der
+  // Stückliste, damit Plan und Liste nebeneinander lesbar sind.
+  zeile("Aufteilung:", true);
+  for (const g of nachGruppen(ergebnis.positionen)) {
+    z.text(`${g.name}`, ix + 1, iy, 6.5, { farbe: GRAU });
+    z.text(`${de(g.gewicht, 1)} kg`, 285.5, iy, 6.5, {
+      ausrichtung: "rechts",
+      farbe: GRAU,
+    });
+    iy -= 3.6;
+  }
+  iy -= 3;
   // Betonmenge: Wer die Bewehrung bestellt, bestellt den Beton gleich mit.
   zeile(`Beton netto: ${de(ergebnis.beton.volumen)} m³`, true);
   zeile(`Bestellmenge: ${de(ergebnis.beton.bestellmenge)} m³`);

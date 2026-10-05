@@ -157,6 +157,7 @@ function baue(art: PlattenArt): Bauteilmodul {
       const asMinQuer = 0.2 * asMin;
 
       /* ---- 2) Flächenbewehrung ---- */
+      k.s.gruppe("Flächenbewehrung");
       const flaecheNetto = Math.max(
         0,
         masse.laenge * masse.hoehe -
@@ -170,6 +171,7 @@ function baue(art: PlattenArt): Bauteilmodul {
       });
 
       /* ---- 3) Ränder ---- */
+      k.s.gruppe("Randeinfassung");
       for (const r of RAENDER)
         art.randBewehrung(k, r, details[r], randLaenge(k.projekt, r));
 
@@ -178,6 +180,7 @@ function baue(art: PlattenArt): Bauteilmodul {
       oeffnungen.forEach((o, i) => {
         const nr = i + 1;
         const marke = oeffnungsMarke(o, i);
+        k.s.gruppe(`Aussparung ${marke}`);
         k.s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * k.lagen,
           `Wechselzulage längs, Aussparung ${nr} (${marke})`, `Wechsel ${marke} längs`);
         k.s.stab(12, "gerade", [o.hoehe + 2 * ls12], 2 * k.lagen,

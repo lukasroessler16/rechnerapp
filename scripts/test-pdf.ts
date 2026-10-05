@@ -4,6 +4,7 @@
  * Ergebnis: /tmp/pdf/<bauteil>-{Bauplan,Biegeliste,Stueckliste}.pdf
  */
 import { mkdirSync, writeFileSync } from "fs";
+import { MATTEN_STOSS_STANDARD } from "../lib/normdaten";
 import { berechneBewehrung } from "../lib/bewehrung";
 import { erzeugeBauplan } from "../lib/pdf/bauplan";
 import { erzeugeBiegeliste } from "../lib/pdf/biegeliste";
@@ -21,6 +22,7 @@ const basis = {
     lagen: 2 as const,
     matte: "auto",
     stababstand: 250,
+    mattenstoss: MATTEN_STOSS_STANDARD,
   },
   firmendaten: {
     firma: "Muster Bau GmbH",

@@ -18,7 +18,7 @@ import {
   standardMasse,
 } from "@/lib/bauteile";
 import { Massfeld, feldFaktor } from "@/lib/bauteile/typen";
-import { BETONKLASSEN, LAGERMATTEN } from "@/lib/normdaten";
+import { BETONKLASSEN, LAGERMATTEN, MATTEN_STOESSE } from "@/lib/normdaten";
 import { REGELWERKE, cnomAusExposition, regelwerkVon } from "@/lib/regelwerk";
 import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
 import { Pruefmeldung, fehlerZu, oeffnungsMarke, pruefeProjekt } from "@/lib/validierung";
@@ -615,54 +615,44 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
         )}
       </section>
 
-      {/* ---------------- Gruppe 2: Bewehrung ---------------- */}
+      {/* ---------------- Gruppe 2: Betonstahl (immer) ---------------- */}
       <section className="gruppe">
-        <h3 className="gruppe-titel">Bewehrung</h3>
-
-        <div className="reihe">
-          <div className="feld">
-            <label>
-              Betonstahl
-              <Erklaerung thema="betonstahl" />
-            </label>
-            <select
-              value={par.stahlguete}
-              onChange={(e) => setPar({ stahlguete: e.target.value })}
-            >
-              {regelwerk.stahlsorten.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.titel}
-                </option>
-              ))}
-            </select>
-            <div className="hinweis">
-              nach {regelwerk.betonstahlNorm} · f_yk ={" "}
-              {regelwerk.stahlsorten.find((s) => s.name === par.stahlguete)?.fyk ??
-                regelwerk.stahlsorten[0].fyk}{" "}
-              N/mm²
-            </div>
+        <h3 className="gruppe-titel">Betonstahl</h3>
+        <div className="feld">
+          <label>
+            Stahlsorte
+            <Erklaerung thema="betonstahl" />
+          </label>
+          <select
+            value={par.stahlguete}
+            onChange={(e) => setPar({ stahlguete: e.target.value })}
+          >
+            {regelwerk.stahlsorten.map((s) => (
+              <option key={s.name} value={s.name}>
+                {s.titel}
+              </option>
+            ))}
+          </select>
+          <div className="hinweis">
+            nach {regelwerk.betonstahlNorm} · f_yk ={" "}
+            {regelwerk.stahlsorten.find((s) => s.name === par.stahlguete)?.fyk ??
+              regelwerk.stahlsorten[0].fyk}{" "}
+            N/mm²
           </div>
-
-          {mitMatten && (
-            <div className="feld">
-              <label>
-                Bewehrungslagen
-                <Erklaerung thema="lagen" />
-              </label>
-              <select
-                value={par.lagen}
-                onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
-              >
-                <option value={1}>einlagig (mittig bzw. unten)</option>
-                <option value={2}>zweilagig (beidseitig)</option>
-              </select>
-              <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
-            </div>
-          )}
         </div>
+      </section>
 
-        <div className="reihe">
-          {mitMatten && (
+      {/*
+        Gruppe 3 hängt von der Bewehrungsart des Bauteils ab. Flächenbauteile
+        bekommen die Mattenfelder, Stabbauteile (Stütze, Träger, Fundamente)
+        ihre eigenen Angaben – nicht beides nebeneinander, von dem die Hälfte
+        wirkungslos ist.
+      */}
+      {mitMatten ? (
+        <section className="gruppe">
+          <h3 className="gruppe-titel">Mattenbewehrung</h3>
+
+          <div className="reihe">
             <div className="feld">
               <label>
                 Lagermatte
@@ -682,33 +672,75 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
                   : "feste Vorgabe – Deckung wird geprüft"}
               </div>
             </div>
-          )}
 
-          {mitMatten && (
-          <div className="feld">
-            <label>
-              Raster Anschlussbewehrung
-              <Erklaerung thema="stababstand" />
-            </label>
-            <select
-              value={par.stababstand}
-              onChange={(e) => setPar({ stababstand: Number(e.target.value) })}
-            >
-              <option value={150}>Ø10 / 15 cm (eng)</option>
-              <option value={200}>Ø10 / 20 cm</option>
-              <option value={250}>Ø10 / 25 cm (Standard)</option>
-            </select>
+            <div className="feld">
+              <label>
+                Bewehrungslagen
+                <Erklaerung thema="lagen" />
+              </label>
+              <select
+                value={par.lagen}
+                onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
+              >
+                <option value={1}>einlagig (mittig bzw. unten)</option>
+                <option value={2}>zweilagig (beidseitig)</option>
+              </select>
+              <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
+            </div>
           </div>
-          )}
-        </div>
 
-        {!mitMatten && (
-          <div className="hinweis">
-            Längsbewehrung und Bügel der Stütze ergeben sich aus Querschnitt und
-            Betondeckung – sie werden automatisch nach EC2 9.5 gewählt.
+          <div className="reihe">
+            <div className="feld">
+              <label>
+                Übergreifungsstoß der Matten
+                <Erklaerung thema="mattenstoss" />
+              </label>
+              <select
+                value={par.mattenstoss}
+                onChange={(e) => setPar({ mattenstoss: Number(e.target.value) })}
+              >
+                {MATTEN_STOESSE.map((m) => (
+                  <option key={m.wert} value={m.wert}>
+                    {m.titel}
+                  </option>
+                ))}
+              </select>
+              <div className="hinweis">
+                geht in Länge und Breite ab – wirkt doppelt auf die Mattenzahl
+              </div>
+            </div>
+
+            <div className="feld">
+              <label>
+                Raster Anschlussbewehrung
+                <Erklaerung thema="stababstand" />
+              </label>
+              <select
+                value={par.stababstand}
+                onChange={(e) => setPar({ stababstand: Number(e.target.value) })}
+              >
+                <option value={150}>Ø10 / 15 cm (eng)</option>
+                <option value={200}>Ø10 / 20 cm</option>
+                <option value={250}>Ø10 / 25 cm (Standard)</option>
+              </select>
+              <div className="hinweis">
+                Abstand der Anschlusseisen an Rändern und Stößen
+              </div>
+            </div>
           </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <section className="gruppe">
+          <h3 className="gruppe-titel">Stabbewehrung</h3>
+          <div className="hinweis" style={{ marginBottom: 14 }}>
+            {modul.name}: Durchmesser, Anzahl und Bügelabstände ergeben sich aus
+            Querschnitt, Betondeckung und Bauteillänge – sie werden nach EC2
+            automatisch gewählt und stehen in der Ergebnisübersicht unten sowie
+            in der Biegeliste. Mattenangaben entfallen hier, weil dieses Bauteil
+            nicht flächig mit Matten bewehrt wird.
+          </div>
+        </section>
+      )}
 
       {/* ---------------- Live-Ergebnis dieser Auswahl ---------------- */}
       <h3 className="gruppe-titel" style={{ marginBottom: 8 }}>

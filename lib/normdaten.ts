@@ -116,8 +116,29 @@ export function matteWaehlen(asErf: number): Lagermatte | null {
   return null;
 }
 
-/** Übergreifungsstoß von Lagermatten [m] (Praxiswert: 2 Maschen + 5 cm ≥ 35 cm) */
-export const MATTEN_STOSS = 0.35;
+/**
+ * Wählbare Übergreifungsstöße von Lagermatten [mm].
+ *
+ * Der Stoß hängt von Maschenweite, Stabdurchmesser und Ausnutzung ab; die
+ * Praxis arbeitet mit "zwei Maschen plus fünf Zentimeter". Weil der Stoß in
+ * BEIDE Richtungen von der nutzbaren Mattenfläche abgeht, schlagen schon
+ * zehn Zentimeter mehr deutlich auf die Mattenzahl durch – deshalb ist er
+ * jetzt wählbar und nicht mehr fest.
+ */
+export const MATTEN_STOESSE = [
+  { wert: 250, titel: "25 cm – eine Masche + 5 cm (geringe Ausnutzung)" },
+  { wert: 350, titel: "35 cm – zwei Maschen + 5 cm (Standard)" },
+  { wert: 450, titel: "45 cm – drei Maschen (hohe Ausnutzung)" },
+  { wert: 600, titel: "60 cm – voller Stoß (volle Ausnutzung, Zugstoß)" },
+] as const;
+
+/** Vorgabe, solange nichts anderes gewählt ist [mm] */
+export const MATTEN_STOSS_STANDARD = 350;
+
+/** Ist dieser Mattenstoß wählbar? */
+export function istMattenstoss(v: unknown): boolean {
+  return MATTEN_STOESSE.some((m) => m.wert === v);
+}
 
 /** Verschnittzuschlag Matten (Zuschnitt an Rändern/Öffnungen) */
 export const VERSCHNITT_FAKTOR = 1.1;

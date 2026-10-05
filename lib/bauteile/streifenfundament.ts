@@ -466,6 +466,7 @@ export const streifenfundament: Bauteilmodul = {
     for (const w of f.warnungen) k.hinweise.push(w);
 
     /* ---- 1) Querbewehrung: U-Stäbe bzw. geschlossene Bügel ---- */
+    k.s.gruppe("Querbewehrung");
     if (f.korb) {
       const haken = (2 * 10 * f.dsQ) / 1000;
       k.s.stab(
@@ -488,6 +489,7 @@ export const streifenfundament: Bauteilmodul = {
     }
 
     /* ---- 2) Längsbewehrung ---- */
+    k.s.gruppe("Längsbewehrung");
     k.s.stab(
       f.dsL,
       "gerade",
@@ -513,6 +515,7 @@ export const streifenfundament: Bauteilmodul = {
       );
 
     /* ---- 3) Anschluss der aufgehenden Wand ---- */
+    k.s.gruppe("Anschluss Wand");
     // Bewusst OHNE eigene Position: Die Steckeisen der aufgehenden Wand
     // gehören zum Bauteil „Wand" und sind dort als Anschlussbewehrung
     // bereits enthalten – sonst würde derselbe Stahl doppelt bestellt.

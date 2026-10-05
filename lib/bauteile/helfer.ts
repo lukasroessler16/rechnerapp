@@ -13,7 +13,7 @@ import { Oeffnung, Projekt } from "../types";
 import {
   LAGERMATTEN,
   Lagermatte,
-  MATTEN_STOSS,
+  MATTEN_STOSS_STANDARD,
   VERSCHNITT_FAKTOR,
   matteWaehlen,
   stabflaeche,
@@ -99,8 +99,10 @@ export function flaechenbewehrung(
       )} cm²/m – Auswahl prüfen!`
     );
 
-  // Nutzbare Mattenfläche: Liefermaß abzüglich Übergreifungsstoß
-  const effektiv = (matte.laenge - MATTEN_STOSS) * (matte.breite - MATTEN_STOSS);
+  // Nutzbare Mattenfläche: Liefermaß abzüglich Übergreifungsstoß. Der Stoß
+  // geht in beide Richtungen ab, deshalb wirkt er doppelt auf die Menge.
+  const stoss = (k.projekt.parameter.mattenstoss ?? MATTEN_STOSS_STANDARD) / 1000;
+  const effektiv = (matte.laenge - stoss) * (matte.breite - stoss);
   const bedarf = opts.flaeche * k.lagen * VERSCHNITT_FAKTOR;
   const anzahl = Math.max(1, Math.ceil(bedarf / effektiv));
   k.s.matte(

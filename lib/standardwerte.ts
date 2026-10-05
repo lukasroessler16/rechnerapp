@@ -3,6 +3,7 @@
  * Wiederherstellung eines gespeicherten Zustands.
  */
 import { Projekt } from "./types";
+import { MATTEN_STOSS_STANDARD } from "./normdaten";
 import { cnomAusExposition, regelwerkVon, STANDARD_REGELWERK } from "./regelwerk";
 import {
   alleMassfelder,
@@ -30,6 +31,7 @@ export function neuesProjekt(): Projekt {
       lagen: 2,
       matte: "auto",
       stababstand: 250,
+      mattenstoss: MATTEN_STOSS_STANDARD,
     },
     firmendaten: {
       firma: "",

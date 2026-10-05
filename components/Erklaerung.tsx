@@ -91,6 +91,17 @@ export const ERKLAERUNGEN: Record<string, Erklaerungstext> = {
       "„automatisch“ wählt die kleinste Matte, die den rechnerischen Bedarf deckt – das ist meist die wirtschaftlichste Lösung.",
     ],
   },
+  mattenstoss: {
+    titel: "Übergreifungsstoß der Matten",
+    text: [
+      "Zwei aneinandergrenzende Matten werden nicht auf Stoß gelegt, sondern überlappt – nur so wird die Kraft von einer Matte in die nächste übertragen.",
+      "Die Überlappung wird vom Liefermaß abgezogen, und zwar in beide Richtungen. Deshalb kosten schon zehn Zentimeter mehr spürbar Material: Aus einer 6,00 × 2,30 m großen Matte bleiben bei 35 cm Stoß nur noch 5,65 × 1,95 m nutzbare Fläche.",
+    ],
+    merke: [
+      "35 cm (zwei Maschen + 5 cm) ist der übliche Wert im Hochbau.",
+      "Höhere Werte nur, wenn die Matte wirklich voll ausgenutzt wird – das sagt Ihnen die Tragwerksplanung.",
+    ],
+  },
   stababstand: {
     titel: "Raster der Anschlussbewehrung",
     text: [

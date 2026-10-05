@@ -71,6 +71,12 @@ export interface Parameter {
   matte: string;
   /** Stababstand der Zulagen/Anschlüsse [mm], typ. 150/200/250 */
   stababstand: number;
+  /**
+   * Übergreifungsstoß der Lagermatten [mm]. Er geht doppelt in die
+   * Mattenzahl ein – in Länge und Breite –, weshalb schon wenige Zentimeter
+   * mehr spürbar Material kosten. Übliche Werte: 2 Maschen + 5 cm.
+   */
+  mattenstoss: number;
 }
 
 /** Projekt-/Firmendaten für den Schriftkopf */
@@ -125,8 +131,15 @@ export type Biegeform =
 
 /** Eine Position der Stück-/Biegeliste */
 export interface Position {
-  /** Positionsnummer (fortlaufend) */
+  /** Positionsnummer (fortlaufend über alle Gruppen) */
   pos: number;
+  /**
+   * Zusammengehörige Bewehrung, z. B. "Flächenbewehrung", "Anschluss oben",
+   * "Öffnung F1". Stückliste und Plan fassen die Positionen darunter mit
+   * Zwischensumme zusammen – auf der Baustelle wird in Anschlüssen gedacht,
+   * nicht in Positionsnummern.
+   */
+  gruppe: string;
   /** Art: Lagermatte oder Stabstahl */
   art: "matte" | "stab";
   /** Bezeichnung, z. B. "Q257A" oder "Ø12" */

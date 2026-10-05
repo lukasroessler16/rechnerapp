@@ -513,6 +513,7 @@ export const traeger: Bauteilmodul = {
     const stabLaenge = Math.max(0.3, t.l - 2 * (projekt.parameter.betondeckung / 1000));
 
     /* ---- 1) Hauptbewehrung ---- */
+    k.s.gruppe("Längsbewehrung");
     // Beim Kragträger liegt die Hauptbewehrung oben und ist in das
     // einspannende Bauteil zu verankern; sonst liegt sie unten im Feld.
     if (kragarm) {
@@ -548,6 +549,7 @@ export const traeger: Bauteilmodul = {
     }
 
     /* ---- 2) Obere Stützbewehrung an den Auflagern (EC2 9.2.1.2) ---- */
+    k.s.gruppe("Stützbewehrung Auflager");
     if (t.nStuetz > 0 && t.lStuetz > 0) {
       // je Auflager ein Satz – der Träger hat zwei Enden
       k.s.stab(
@@ -563,6 +565,7 @@ export const traeger: Bauteilmodul = {
     }
 
     /* ---- 3) Bügel ---- */
+    k.s.gruppe("Bügel");
     // Bei 4-schnittiger Ausführung liegt an jeder Stelle ein zweiter,
     // schmalerer Bügel; er wird als eigene Position geführt.
     k.s.stab(
@@ -586,6 +589,7 @@ export const traeger: Bauteilmodul = {
     }
 
     /* ---- 4) Hautbewehrung (EC2 9.7) ---- */
+    k.s.gruppe("Hautbewehrung");
     if (t.nHaut > 0) {
       k.s.stab(
         t.dsHaut,

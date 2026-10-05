@@ -7,9 +7,12 @@
  * beim Hinzufügen neuer Bauteile nichts ändern.
  */
 import { berechneBewehrung, oeffnungsDetails } from "../lib/bewehrung";
+import { MATTEN_STOESSE, MATTEN_STOSS_STANDARD } from "../lib/normdaten";
 import { projektZuMetadata, metadataZuProjekt } from "../lib/payload";
 import { pruefeProjekt } from "../lib/validierung";
 import { BAUTEILE, bauteilModul, standardDetails, standardMasse } from "../lib/bauteile";
+import { nachGruppen } from "../lib/gruppen";
+import { STANDARD_GRUPPE } from "../lib/bauteile/sammler";
 import { Projekt } from "../lib/types";
 import {
   DEUTSCHLAND,
@@ -34,6 +37,7 @@ const parameter = {
   lagen: 2 as const,
   matte: "auto",
   stababstand: 250,
+  mattenstoss: MATTEN_STOSS_STANDARD,
 };
 
 const zeige = (titel: string, e: ReturnType<typeof berechneBewehrung>) => {
@@ -692,6 +696,122 @@ for (const erg of [mitLoechern, ohneLoecher]) {
     );
 }
 console.log("Eigengewicht liegt im Rahmen des pauschalen Normansatzes von 25 kN/m³");
+
+/* ------------------------------------------------------------------ */
+/* 9d) Positionsgruppen                                                 */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Positionsgruppen ===");
+
+for (const modul of BAUTEILE) {
+  const p: Projekt = {
+    ...wand,
+    bauteil: modul.id,
+    masse: standardMasse(modul),
+    details: standardDetails(modul),
+    oeffnungen: [],
+  };
+  const erg = berechneBewehrung(p);
+  const gruppen = nachGruppen(erg.positionen);
+
+  // Keine Position darf in der Auffanggruppe landen – sonst hat ein Modul
+  // vergessen, seine Bewehrung einzuordnen.
+  if (gruppen.some((g) => g.name === STANDARD_GRUPPE))
+    throw new Error(`${modul.id}: Positionen ohne eigene Gruppe (${STANDARD_GRUPPE}).`);
+
+  // Die Zwischensummen müssen das Gesamtgewicht ergeben, sonst stimmt eine
+  // der beiden Zahlen auf der Stückliste nicht.
+  const summe = Math.round(gruppen.reduce((a, g) => a + g.gewicht, 0) * 10) / 10;
+  if (Math.abs(summe - erg.gesamtgewicht) > 0.15)
+    throw new Error(
+      `${modul.id}: Summe der Gruppen ${summe} kg ≠ Gesamtgewicht ${erg.gesamtgewicht} kg.`
+    );
+
+  // Positionsnummern laufen lückenlos durch und sind gruppenweise sortiert
+  const nummern = gruppen.flatMap((g) => g.positionen.map((x) => x.pos));
+  if (nummern.some((n, i) => n !== i + 1))
+    throw new Error(`${modul.id}: Positionsnummern laufen nicht gruppenweise durch.`);
+
+  console.log(`${modul.id.padEnd(18)} ${gruppen.map((g) => g.name).join(" · ")}`);
+}
+
+// Die Wand mit Öffnungen bekommt je Öffnung eine eigene Gruppe
+const gruppenWand = nachGruppen(berechneBewehrung(wand).positionen).map((g) => g.name);
+for (const erwartet of ["Flächenbewehrung", "Anschluss unten", "Anschluss oben"])
+  if (!gruppenWand.includes(erwartet))
+    throw new Error(`Der Wand fehlt die Gruppe "${erwartet}".`);
+if (!gruppenWand.some((n) => n.startsWith("Öffnung")))
+  throw new Error("Öffnungen müssen eine eigene Gruppe bekommen.");
+console.log(`Wand mit Öffnungen: ${gruppenWand.join(" · ")}`);
+
+/* ------------------------------------------------------------------ */
+/* 9e) Seitlicher Anschluss an eine bestehende Wand                     */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Wand an bestehende Wand ===");
+
+const anBestand: Projekt = {
+  ...wand,
+  details: { ...wand.details, links: "wand_weiter", rechts: "wand_weiter" },
+};
+const ergBestand = berechneBewehrung(anBestand);
+for (const seite of ["links", "rechts"]) {
+  const g = nachGruppen(ergBestand.positionen).find((x) => x.name === `Anschluss ${seite}`);
+  if (!g || g.positionen.length === 0)
+    throw new Error(`Anschluss ${seite} an eine bestehende Wand erzeugt keine Bewehrung.`);
+  // Es müssen Übergreifungsstöße sein, keine Randeinfassung: Ein nicht
+  // behandelter Detailwert würde sonst still zum freien Rand werden.
+  if (!g.positionen.some((p) => p.verwendung.includes("bestehende Wand")))
+    throw new Error(
+      `Anschluss ${seite}: erwartet Anschlusseisen an die bestehende Wand, gefunden ` +
+        g.positionen.map((p) => p.verwendung).join(", ")
+    );
+}
+if (!ergBestand.hinweise.some((h) => h.includes("Arbeitsfuge")))
+  throw new Error("Der Anschluss an eine bestehende Wand braucht den Hinweis zur Arbeitsfuge.");
+console.log("Beidseitiger Anschluss an Bestand erzeugt Übergreifungsstöße samt Hinweis");
+
+/* ------------------------------------------------------------------ */
+/* 9f) Übergreifungsstoß der Matten                                     */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Mattenstoß ===");
+
+// Eine große Fläche reagiert feiner als die Musterwand: Hier muss ein
+// größerer Stoß zu mindestens ebenso vielen Matten führen.
+const grossePlatte: Projekt = {
+  ...wand,
+  bauteil: "bodenplatte",
+  masse: standardMasse(bauteilModul("bodenplatte")),
+  details: standardDetails(bauteilModul("bodenplatte")),
+  oeffnungen: [],
+};
+let vorher = 0;
+for (const stoss of MATTEN_STOESSE) {
+  const erg = berechneBewehrung({
+    ...grossePlatte,
+    parameter: { ...grossePlatte.parameter, mattenstoss: stoss.wert },
+  });
+  if (erg.mattenGewicht < vorher)
+    throw new Error(
+      `Ein größerer Stoß (${stoss.wert} mm) darf nie weniger Matten ergeben ` +
+        `(${erg.mattenGewicht} kg nach ${vorher} kg).`
+    );
+  vorher = erg.mattenGewicht;
+  console.log(`${String(stoss.wert / 10).padStart(3)} cm Stoß → ${erg.mattenGewicht} kg Matten`);
+}
+
+// Serverseitig darf kein beliebiger Stoß durchkommen – sonst ließe sich die
+// Mattenzahl von außen kleinrechnen.
+const gemogelt = metadataZuProjekt(
+  projektZuMetadata({
+    ...wand,
+    parameter: { ...wand.parameter, mattenstoss: 5 },
+  })
+);
+if (gemogelt.parameter.mattenstoss !== MATTEN_STOSS_STANDARD)
+  throw new Error("Ein unzulässiger Mattenstoß muss auf den Standardwert zurückfallen.");
+console.log("Unzulässiger Mattenstoß wird serverseitig verworfen");
 
 /* ------------------------------------------------------------------ */
 /* 10) Payload-Roundtrip für jedes Bauteil                             */

@@ -8,6 +8,7 @@
  */
 
 import { Projekt } from "./types";
+import { MATTEN_STOSS_STANDARD } from "./normdaten";
 import { bauteilModul, standardDetails, standardMasse } from "./bauteile";
 
 export const MUSTERPROJEKT: Projekt = {
@@ -32,6 +33,7 @@ export const MUSTERPROJEKT: Projekt = {
     lagen: 2,
     matte: "auto",
     stababstand: 250,
+    mattenstoss: MATTEN_STOSS_STANDARD,
   },
   firmendaten: {
     firma: "Musterbau GmbH",

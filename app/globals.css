@@ -836,3 +836,13 @@ table.vergleich tbody tr:last-child td {
 .ladestand li.stand-fehler .stand-wort { color: var(--fehler); font-weight: 600; }
 .ladestand li.stand-fertig span:first-child { color: var(--ink); }
 .ladestand li.stand-offen span:first-child { color: var(--ink-soft); }
+
+/* Gruppenzeile in der Positionsliste (Ergebnisvorschau) */
+.positionsliste tr.gruppenzeile td {
+  background: #eef0f3;
+  font-weight: 600;
+  font-size: 12px;
+  padding-top: 7px;
+  padding-bottom: 5px;
+  border-top: 1px solid var(--line);
+}
