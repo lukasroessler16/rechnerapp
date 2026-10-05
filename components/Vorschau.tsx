@@ -125,6 +125,20 @@ export default function Vorschau({
           <div className="kw-wert">{k.flaecheNetto.toLocaleString("de-AT")} m²</div>
           <div className="kw-name">{k.flaecheLabel}</div>
         </div>
+        <div className="kennwert">
+          <div className="kw-wert">
+            {ergebnis.beton.volumen.toLocaleString("de-AT")} m³
+          </div>
+          <div className="kw-name">
+            Beton netto · Bestellmenge {ergebnis.beton.bestellmenge.toLocaleString("de-AT")} m³
+          </div>
+        </div>
+        <div className="kennwert">
+          <div className="kw-wert">{ergebnis.beton.gewicht.toLocaleString("de-AT")} t</div>
+          <div className="kw-name">
+            Eigengewicht · {ergebnis.beton.bewehrungsgrad} kg Stahl je m³
+          </div>
+        </div>
       </div>
 
       {eingabeFehler.length > 0 && (

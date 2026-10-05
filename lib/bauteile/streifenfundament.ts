@@ -333,6 +333,12 @@ export const streifenfundament: Bauteilmodul = {
       p.masse.hoehe * 100
     )} cm · L = ${zahl(p.masse.laenge)} m`,
 
+  /**
+   * Nur der Fundamentstreifen. Die aufgehende Wand ist ein eigenes Bauteil
+   * und wird dort gerechnet – sonst wäre ihr Beton doppelt bestellt.
+   */
+  betonvolumen: (p) => p.masse.breite * p.masse.hoehe * p.masse.laenge,
+
   /* ---------------- Zeichnung ---------------- */
 
   zeichnung(projekt: Projekt): Ansicht[] {

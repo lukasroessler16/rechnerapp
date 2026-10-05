@@ -434,6 +434,17 @@ export const stuetzmauer: Bauteilmodul = {
       p.masse.fundamentDicke * 100
     )} cm · L = ${zahl(p.masse.laenge)} m`,
 
+  /**
+   * Wandscheibe plus Fundamentplatte. `hoehe` ist die Wandhöhe ÜBER dem
+   * Fundament, deshalb werden beide Teile getrennt gerechnet und addiert –
+   * mit der Gesamthöhe gerechnet wäre das Fundament doppelt enthalten.
+   */
+  betonvolumen: (p) => {
+    const wand = p.masse.hoehe * p.masse.wanddicke * p.masse.laenge;
+    const fundament = p.masse.fundamentBreite * p.masse.fundamentDicke * p.masse.laenge;
+    return wand + fundament;
+  },
+
   /* ---------------- Zeichnung ---------------- */
 
   zeichnung(projekt: Projekt): Ansicht[] {

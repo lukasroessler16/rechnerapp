@@ -337,6 +337,9 @@ export const einzelfundament: Bauteilmodul = {
       p.masse.breite * 100
     )}/${Math.round(p.masse.hoehe * 100)} cm`,
 
+  /** Fundamentblock; die aufgehende Stütze ist ein eigenes Bauteil */
+  betonvolumen: (p) => p.masse.laenge * p.masse.breite * p.masse.hoehe,
+
   /* ---------------- Zeichnung: Draufsicht + Schnitt ---------------- */
 
   zeichnung(projekt: Projekt): Ansicht[] {

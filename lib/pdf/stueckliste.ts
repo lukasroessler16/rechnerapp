@@ -56,7 +56,12 @@ export async function erzeugeStueckliste(
     y -= ZEILE_H * 0.6;
   };
 
-  const neueSeite = async () => {
+  /**
+   * @param mitKopfzeile  false für eine Seite, auf der keine Positionszeilen
+   *   mehr folgen (Summenblock): Eine Spaltenüberschrift ohne Zeilen darunter
+   *   sieht nach einem Fehler aus.
+   */
+  const neueSeite = async (mitKopfzeile = true) => {
     seiteNr++;
     const seite = doc.addPage([mm(210), mm(297)]);
     z = new Zeichner(seite, fonts);
@@ -69,7 +74,7 @@ export async function erzeugeStueckliste(
       { farbe: GRAU }
     );
     y = START_Y;
-    kopfzeile();
+    if (mitKopfzeile) kopfzeile();
   };
 
   await neueSeite();
@@ -99,8 +104,11 @@ export async function erzeugeStueckliste(
     y -= ZEILE_H;
   }
 
-  /* ---------- Summenblock ---------- */
-  if (y < ENDE_Y + 30) await neueSeite();
+  /* ---------- Summenblock: Stahl und Beton ---------- */
+  // Beide Blöcke gehören zusammen – sie sagen, was zu bestellen ist. Der
+  // Platz für beide wird deshalb VOR dem ersten geprüft, damit nicht der
+  // Beton allein auf eine neue Seite rutscht.
+  if (y < ENDE_Y + 72) await neueSeite(false);
   y -= 4;
   z.linie(15, y, 195, y, 0.6);
   y -= 7;
@@ -116,6 +124,33 @@ export async function erzeugeStueckliste(
     8,
     { farbe: GRAU }
   );
+
+  /* ---------- Betonmenge ---------- */
+  // Steht bewusst direkt unter dem Stahl: Beides wird in einem Zug bestellt.
+  y -= 14;
+  z.rechteck(15, y - 14, 180, 20, { fuellung: HELLGRAU });
+  z.text(`Beton netto: ${de(ergebnis.beton.volumen)} m³`, 18, y, 9);
+  z.text(`Eigengewicht: ${de(ergebnis.beton.gewicht)} t`, 78, y, 9);
+  z.text(`BESTELLMENGE: ${de(ergebnis.beton.bestellmenge)} m³`, 138, y, 10, { fett: true });
+  y -= 6;
+  z.text(
+    `${projekt.parameter.betonklasse} · Bewehrungsgrad ${ergebnis.beton.bewehrungsgrad} kg/m³ · ` +
+      `Bestellmenge inkl. 5 % Zuschlag, aufgerundet`,
+    18,
+    y,
+    8,
+    { farbe: GRAU }
+  );
+  y -= 6;
+  z.text(
+    "Betonmenge ist das Bauteilvolumen netto (Öffnungen abgezogen). Nicht enthalten: Sauberkeitsschicht, " +
+      "Überprofil der Schalung, Reste in Pumpe und Leitung.",
+    18,
+    y,
+    6.5,
+    { farbe: GRAU }
+  );
+
   y -= 10;
   z.text(
     "Gewichte gerundet. Mengenermittlung ohne statische Bemessung - vor Bestellung durch Tragwerksplaner:in freigeben.",

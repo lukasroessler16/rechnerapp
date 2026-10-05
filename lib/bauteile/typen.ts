@@ -252,6 +252,16 @@ export interface Bauteilmodul {
   /** Kurzbeschreibung der Abmessungen für Listenköpfe, z. B. "8,00 × 2,75 × 0,25 m" */
   masseText(projekt: Projekt): string;
 
+  /**
+   * Betonvolumen des Bauteils netto [m³] – Öffnungen und Aussparungen
+   * abgezogen, Verluste beim Einbau nicht enthalten (dafür gibt es den
+   * Zuschlag in lib/beton.ts).
+   *
+   * Pflichtangabe: Ein Bauteil ohne Betonmenge wäre auf Plan und Stückliste
+   * unvollständig, und ein neues Bauteil soll das nicht vergessen können.
+   */
+  betonvolumen(projekt: Projekt): number;
+
   /** eine oder mehrere Ansichten für Live-Skizze und Bauplan */
   zeichnung(projekt: Projekt): Ansicht[];
 

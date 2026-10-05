@@ -107,6 +107,16 @@ function baue(art: PlattenArt): Bauteilmodul {
     masseText: (p) =>
       `${art.name} ${zahl(p.masse.laenge)} × ${zahl(p.masse.hoehe)} × ${zahl(p.masse.dicke)} m`,
 
+    /** Plattenfläche mal Dicke, abzüglich der Aussparungen */
+    betonvolumen: (p) => {
+      const brutto = p.masse.laenge * p.masse.hoehe * p.masse.dicke;
+      const loecher = p.oeffnungen.reduce(
+        (summe, o) => summe + o.breite * o.hoehe * p.masse.dicke,
+        0
+      );
+      return Math.max(0, brutto - loecher);
+    },
+
     zeichnung(projekt: Projekt): Ansicht[] {
       const a = flaechenAnsicht(projekt, {
         id: "draufsicht",

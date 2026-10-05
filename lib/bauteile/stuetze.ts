@@ -260,6 +260,9 @@ export const stuetze: Bauteilmodul = {
       p.masse.hoehe
     )} m`,
 
+  /** Rechteckquerschnitt über die Stützenhöhe */
+  betonvolumen: (p) => p.masse.breite * p.masse.tiefe * p.masse.hoehe,
+
   /* ---------------- Zeichnung: Längsschnitt + Querschnitt ---------------- */
 
   zeichnung(projekt: Projekt): Ansicht[] {

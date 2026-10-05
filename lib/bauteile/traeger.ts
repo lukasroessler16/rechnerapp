@@ -340,6 +340,13 @@ export const traeger: Bauteilmodul = {
       p.masse.laenge
     )} m · ${SYSTEM_NAME[p.details.system] ?? "Einfeldträger"}`,
 
+  /**
+   * Trägerquerschnitt über die Länge. Gerechnet wird der Träger als Ganzes –
+   * dass bei einem Unterzug die Deckenplatte oben anschließt, ändert am
+   * Betonvolumen des Trägers nichts, weil die Platte ihr eigenes Bauteil ist.
+   */
+  betonvolumen: (p) => p.masse.breite * p.masse.hoehe * p.masse.laenge,
+
   /* ---------------- Zeichnung: Längsschnitt + Querschnitt ---------------- */
 
   zeichnung(projekt: Projekt): Ansicht[] {

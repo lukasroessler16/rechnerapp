@@ -10,6 +10,9 @@
  * Bauteilmodul. Dadurch kommt ein neues Bauteil ohne Änderung am Kern aus.
  */
 
+import { Betonmenge } from "./beton";
+
+
 /** Bauteilkennung, z. B. "wand" – gültige Werte liefert lib/bauteile */
 export type Bauteil = string;
 
@@ -193,6 +196,8 @@ export interface Ergebnis {
   mattenGewicht: number;
   stabstahlGewicht: number;
   kennwerte: Kennwerte;
+  /** Betonmenge, Bestellmenge, Eigengewicht und Bewehrungsgrad */
+  beton: Betonmenge;
   /** Fachliche Hinweise, z. B. wo statische Prüfung erforderlich ist */
   hinweise: string[];
 }

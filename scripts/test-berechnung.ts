@@ -624,6 +624,76 @@ if (unsinn.parameter.regelwerk !== "at")
 console.log("Serverseitige Prüfung des Regelwerks OK");
 
 /* ------------------------------------------------------------------ */
+/* 9c) Betonmenge und Eigengewicht                                      */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Betonmenge ===");
+
+/** Von Hand nachgerechnete Volumina zu den Standardmaßen [m³] */
+const SOLL_VOLUMEN: Record<string, number> = {
+  wand: 5.0 * 2.75 * 0.25,
+  deckenplatte: 5.0 * 4.0 * 0.2,
+  bodenplatte: 5.0 * 4.0 * 0.25,
+  stuetze: 0.3 * 0.3 * 3.0,
+  traeger: 0.25 * 0.5 * 5.0,
+  streifenfundament: 0.6 * 0.4 * 10.0,
+  einzelfundament: 1.5 * 1.5 * 0.5,
+  // Wand über dem Fundament PLUS Fundamentplatte – nicht mit der Gesamthöhe
+  stuetzmauer: 2.0 * 0.25 * 8.0 + 1.8 * 0.4 * 8.0,
+};
+
+for (const modul of BAUTEILE) {
+  const p: Projekt = {
+    ...wand,
+    bauteil: modul.id,
+    masse: standardMasse(modul),
+    details: standardDetails(modul),
+    oeffnungen: [],
+  };
+  const erg = berechneBewehrung(p);
+  const soll = SOLL_VOLUMEN[modul.id];
+  if (soll === undefined) throw new Error(`${modul.id}: kein Sollwert im Test hinterlegt.`);
+  if (Math.abs(erg.beton.volumen - soll) > 0.011)
+    throw new Error(
+      `${modul.id}: Betonvolumen ${erg.beton.volumen} m³, erwartet ${soll.toFixed(2)} m³.`
+    );
+  if (!(erg.beton.bestellmenge >= erg.beton.volumen))
+    throw new Error(`${modul.id}: Bestellmenge darf nie unter dem Volumen liegen.`);
+  if (!(erg.beton.gewicht > 0)) throw new Error(`${modul.id}: Eigengewicht muss positiv sein.`);
+  console.log(
+    `${modul.id.padEnd(18)} ${String(erg.beton.volumen).padStart(6)} m³ · ` +
+      `${String(erg.beton.bestellmenge).padStart(5)} m³ Bestellung · ` +
+      `${String(erg.beton.gewicht).padStart(6)} t · ${erg.beton.bewehrungsgrad} kg/m³`
+  );
+}
+
+// Öffnungen müssen abgezogen werden – sonst wird zu viel Beton bestellt.
+const mitLoechern = berechneBewehrung(wand);
+const ohneLoecher = berechneBewehrung({ ...wand, oeffnungen: [] });
+if (!(mitLoechern.beton.volumen < ohneLoecher.beton.volumen))
+  throw new Error("Öffnungen müssen das Betonvolumen verringern.");
+const abzug = wand.oeffnungen.reduce((a, o) => a + o.breite * o.hoehe * wand.masse.dicke, 0);
+if (Math.abs(ohneLoecher.beton.volumen - mitLoechern.beton.volumen - abzug) > 0.011)
+  throw new Error("Der Abzug der Öffnungen stimmt nicht mit ihrer Größe überein.");
+console.log(
+  `Wand mit Öffnungen: ${mitLoechern.beton.volumen} m³ statt ${ohneLoecher.beton.volumen} m³ ` +
+    `(Abzug ${abzug.toFixed(2)} m³)`
+);
+
+// Eigengewicht gegen den pauschalen Normansatz 25 kN/m³ (EC1 Tab. A.1):
+// Die genauere Rechnung darf davon nur wenige Prozent abweichen.
+for (const erg of [mitLoechern, ohneLoecher]) {
+  const pauschal = (erg.beton.volumen * 2500) / 1000;
+  const abw = Math.abs(erg.beton.gewicht - pauschal) / pauschal;
+  if (abw > 0.05)
+    throw new Error(
+      `Eigengewicht ${erg.beton.gewicht} t weicht ${(abw * 100).toFixed(1)} % vom Normansatz ` +
+        `${pauschal.toFixed(2)} t ab – das deutet auf einen Rechenfehler hin.`
+    );
+}
+console.log("Eigengewicht liegt im Rahmen des pauschalen Normansatzes von 25 kN/m³");
+
+/* ------------------------------------------------------------------ */
 /* 10) Payload-Roundtrip für jedes Bauteil                             */
 /* ------------------------------------------------------------------ */
 

@@ -51,6 +51,13 @@ export const sicher = (s: string) =>
     .replace(/≤/g, "<=")
     .replace(/≈/g, "~")
     .replace(/±/g, "+/-")
+    // Hoch­gestellte Ziffern kennt WinAnsi zwar, die eingebetteten
+    // Standardschriften zeichnen sie aber nicht – im Plan stand dadurch
+    // "2,57 cm /m" statt "cm²/m", also eine fehlende Einheit auf einem
+    // Dokument, nach dem bestellt wird. "cm2" und "m3" sind auf technischen
+    // Unterlagen ohnehin gebräuchlich und immer lesbar.
+    .replace(/²/g, "2")
+    .replace(/³/g, "3")
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, (c) => (WINANSI_ZUSATZ.includes(c) ? c : "?"));
 
 export interface Fonts {

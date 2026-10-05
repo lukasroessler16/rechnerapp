@@ -35,10 +35,33 @@ export async function erzeugeBauplan(
   /* ---------- Bewehrungsangaben (rechte Spalte) ---------- */
   const ix = 245;
   let iy = 190;
+  const SPALTE = 287 - ix - 2; // verfügbare Breite bis zum Planrahmen [mm]
+
+  /**
+   * Eine Zeile der Angabenspalte. Zu lange Zeilen werden an Leerzeichen
+   * umbrochen und eingerückt fortgesetzt – Normbezeichnungen wie
+   * "Betonstahl: B550B (ÖNORM B 4707)" liefen sonst über den Planrahmen
+   * hinaus und standen halb außerhalb des Blattes.
+   */
   const zeile = (t: string, fett = false) => {
-    z.text(t, ix, iy, 7.5, { fett });
-    iy -= 4.5;
+    const woerter = t.split(" ");
+    let puffer = "";
+    let erste = true;
+    for (const wort of woerter) {
+      const versuch = puffer ? `${puffer} ${wort}` : wort;
+      if (puffer && z.textBreite(erste ? versuch : `  ${versuch}`, 7.5) > SPALTE) {
+        z.text(erste ? puffer : `  ${puffer}`, ix, iy, 7.5, { fett });
+        iy -= 4.2;
+        puffer = wort;
+        erste = false;
+      } else puffer = versuch;
+    }
+    if (puffer) {
+      z.text(erste ? puffer : `  ${puffer}`, ix, iy, 7.5, { fett });
+      iy -= 4.5;
+    }
   };
+
   z.text("BEWEHRUNGSANGABEN", ix, iy, 8.5, { fett: true });
   iy -= 6;
   const par = projekt.parameter;
@@ -46,8 +69,7 @@ export async function erzeugeBauplan(
   const k = ergebnis.kennwerte;
   zeile(`Bauteil: ${modul.name}`);
   // Die Maßangabe kann lang werden (Stützmauer). Sie wird an den Trennpunkten
-  // umbrochen, damit sie nicht über den Blattrand hinausläuft.
-  const SPALTE = 287 - ix - 2; // verfügbare Breite bis zum Planrahmen [mm]
+  // umbrochen, damit die Teile zusammenbleiben.
   let puffer = "";
   for (const teil of modul.masseText(projekt).replace(`${modul.name} `, "").split(" · ")) {
     const versuch = puffer ? `${puffer} · ${teil}` : teil;
@@ -72,6 +94,12 @@ export async function erzeugeBauplan(
   zeile(`Stahl gesamt: ${de(ergebnis.gesamtgewicht, 1)} kg`, true);
   zeile(`davon Matten: ${de(ergebnis.mattenGewicht, 1)} kg`);
   zeile(`davon Stabstahl: ${de(ergebnis.stabstahlGewicht, 1)} kg`);
+  iy -= 2;
+  // Betonmenge: Wer die Bewehrung bestellt, bestellt den Beton gleich mit.
+  zeile(`Beton netto: ${de(ergebnis.beton.volumen)} m³`, true);
+  zeile(`Bestellmenge: ${de(ergebnis.beton.bestellmenge)} m³`);
+  zeile(`Eigengewicht: ${de(ergebnis.beton.gewicht)} t`);
+  zeile(`Bewehrungsgrad: ${ergebnis.beton.bewehrungsgrad} kg/m³`);
 
   /* ---------- Hinweisblock ---------- */
   z.text(

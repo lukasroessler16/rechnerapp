@@ -14,6 +14,7 @@
  */
 
 import { Ergebnis, Projekt } from "./types";
+import { betonmenge } from "./beton";
 import { BETONKLASSEN } from "./normdaten";
 import { anNorm, fykVon, regelwerkVon } from "./regelwerk";
 import { bauteilModul } from "./bauteile";
@@ -88,10 +89,14 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
     ) / 10;
   const mattenGewicht = summe("matte");
   const stabstahlGewicht = summe("stab");
+  const gesamtgewicht = Math.round((mattenGewicht + stabstahlGewicht) * 10) / 10;
 
   return {
     positionen,
-    gesamtgewicht: Math.round((mattenGewicht + stabstahlGewicht) * 10) / 10,
+    gesamtgewicht,
+    // Betonmenge aus der Bauteilgeometrie, Eigengewicht mit der tatsächlich
+    // ermittelten Bewehrung – siehe lib/beton.ts.
+    beton: betonmenge(modul.betonvolumen(projekt), gesamtgewicht),
     mattenGewicht,
     stabstahlGewicht,
     kennwerte,
