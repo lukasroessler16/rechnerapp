@@ -38,6 +38,11 @@ export default function Startseite() {
           österreichischen oder dem deutschen Nationalen Anhang. Bis zur
           Ergebnisvorschau kostet das nichts, eine Anmeldung braucht es nicht.
         </p>
+        <p className="willkommen-lead">
+          Eine lange Wand planen Sie in Betonierabschnitten – jeder mit eigener
+          Länge, eigenen Öffnungen und eigenem Plan, dazu eine Gesamt-Stückliste
+          über alle Abschnitte zum Bestellen.
+        </p>
 
         <div className="willkommen-knoepfe">
           <Link href="/rechner" className="knopf primaer gross">
@@ -48,9 +53,14 @@ export default function Startseite() {
           </Link>
         </div>
 
+        {/*
+          Preisangabe: „ab", weil eine Wand in mehreren Betonierabschnitten
+          geplant werden kann und dann je Abschnitt bezahlt wird. Eine Zahl,
+          die beim Bezahlen eine andere ist, wäre nicht nur unschön.
+        */}
         <p className="willkommen-klein">
-          {BAUTEILE.length} Bauteiltypen · {PREIS} € einmalig je Berechnung ·
-          keine Registrierung
+          {BAUTEILE.length} Bauteiltypen · ab {PREIS} € je Berechnung (Wände je
+          Abschnitt) · keine Registrierung
         </p>
       </section>
 

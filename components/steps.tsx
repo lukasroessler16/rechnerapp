@@ -264,7 +264,11 @@ export function Step2Masse({ projekt, set, nr }: StepProps) {
     <>
       <h2 className="schritt-titel">{nr} · Grundmaße</h2>
       <p className="schritt-hilfe">
-        Maße für {modul.name}. Die Skizze rechts aktualisiert sich live.
+        {/*
+          Nicht „die Skizze rechts": Am Handy steht sie unter dem Formular,
+          und ein Hinweis, der auf eine leere Stelle zeigt, verunsichert.
+        */}
+        Maße für {modul.name}. Die Skizze aktualisiert sich live mit.
       </p>
       {/* Bei vier Maßfeldern wirkt ein 2×2-Raster ruhiger als 3 + 1 */}
       <div className={modul.masse.length === 4 ? "reihe" : "reihe3"}>

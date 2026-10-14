@@ -30,7 +30,11 @@ export default function Rechtliches() {
         (Wände, Decken- und Bodenplatten, Stützen, Träger, Fundamente und
         Stützmauern) die erforderliche Baustahlmenge und erstellt daraus drei
         Dokumente: einen maßstäblichen Bauplan, eine Biegeliste und eine
-        Stückliste im PDF-Format. Grundlage sind die Mindestbewehrung nach
+        Stückliste im PDF-Format. Wände können in mehreren Betonierabschnitten
+        geplant werden; in diesem Fall entstehen diese drei Dokumente je
+        Abschnitt sowie zusätzlich eine Gesamt-Stückliste über alle Abschnitte,
+        und alle Dateien werden gemeinsam als ZIP-Datei bereitgestellt.
+        Grundlage sind die Mindestbewehrung nach
         Eurocode 2 (EN 1992-1-1) in Verbindung mit dem in der Berechnung
         gewählten Nationalen Anhang – ÖNORM B 1992-1-1 für Österreich oder
         DIN EN 1992-1-1/NA für Deutschland – sowie anerkannte
@@ -69,8 +73,11 @@ export default function Rechtliches() {
         Der Fragebogen einschließlich Ergebnisvorschau ist kostenlos. Die
         Freischaltung der Dokumente kostet{" "}
         <Platzhalter>29,00 €</Platzhalter> je Berechnungsdurchlauf
-        (Einmalzahlung, keine Abonnements, kein Kundenkonto). Preisangaben
-        verstehen sich{" "}
+        (Einmalzahlung, keine Abonnements, kein Kundenkonto). Wird eine Wand in
+        mehrere Betonierabschnitte geteilt, gilt dieser Betrag je Abschnitt, da
+        jeder Abschnitt einen eigenen vollständigen Satz Dokumente ergibt; der
+        Gesamtbetrag steht vor dem Bezahlvorgang auf der Schaltfläche und wird
+        im Stripe-Checkout nochmals ausgewiesen. Preisangaben verstehen sich{" "}
         <Platzhalter>inklusive / zuzüglich gesetzlicher Umsatzsteuer</Platzhalter>.
       </p>
       <p>

@@ -1,14 +1,16 @@
 # Projektnotizen (für nahtlose Fortsetzung in jeder Claude-Sitzung)
 
-Stand: 2026-09-15 · Status: **funktional fertig, vor dem Live-Gang**
-(Build ✓, `npm test` ✓, E2E ✓, Paywall-Negativtest ✓).
+Stand: 2026-10-14 · Status: **funktional fertig, Berechnungen fachlich
+geprüft, vor dem Live-Gang** (Build ✓, `npm test` ✓, E2E ✓,
+Paywall-Negativtest ✓).
 
 ## Getroffene Entscheidungen (mit Lukas abgestimmt)
 
 Next.js 16 Full-Stack (TypeScript, App Router) · Stripe Checkout
-(Einmalzahlung) · Vercel-Hosting · Preis 29 € (`PREIS_CENT=2900`).
-Fachliche Prüfung und die Abstimmung mit der Kammer macht Lukas' Partner
-(selbständiger Ziviltechniker).
+(Einmalzahlung) · Vercel-Hosting · Preis 29 € (`PREIS_CENT=2900`), bei
+geteilten Wänden **je Abschnitt**. Fachliche Prüfung und die Abstimmung mit
+der Kammer macht Lukas' Partner (selbständiger Ziviltechniker); die
+Berechnungen hat er im Oktober 2026 durchgesehen und freigegeben.
 
 ## Architektur-Kernidee
 
@@ -35,6 +37,41 @@ Jedes Bauteil, dem dadurch etwas „fehlt“, gibt dazu einen Hinweis aus.
 Sonderfall Stützmauer: als einziges Bauteil eine **Vorbemessung aus Erddruck**
 (Rankine, γ_G = 1,35 / γ_Q = 1,50), weil reine Mindestbewehrung dort falsche
 Mengen liefern würde. Eigener `abschlussHinweis` und `planHinweis`.
+
+## Wände in Abschnitten (Oktober 2026)
+
+Eine lange Wand wird in Betonierabschnitte geteilt. `lib/abschnitte.ts` ist
+die einzige Stelle, die davon weiß: `Bauvorhaben = Projekt[]`, höchstens
+`MAX_ABSCHNITTE = 8`, teilbar nur, was im Bauteilmodul `teilbar: true` setzt
+(heute allein die Wand). Berechnungskern, Bauteilmodule, Zeichnungen und
+Validierung blieben **unberührt** – sie rechnen weiterhin genau einen
+Abschnitt. Bewusst ein Wrapper statt eines Umbaus von `Projekt`.
+
+* Je Abschnitt eigene Maße, Öffnungen und Ränder; Bauteil, bautechnische
+  Parameter und Firmendaten gehören dem Bauvorhaben und werden in
+  `vereinheitliche()` erzwungen – nicht nur in der Oberfläche, damit auch eine
+  manipulierte Anfrage keine Mischung aus zwei Regelwerken erzeugt.
+* Beim Anlegen eines Abschnitts wird an der neuen Fuge beidseits
+  `wand_weiter` gesetzt (sonst bekämen beide Teile eine Randeinfassung, die es
+  nicht gibt), und der Wizard springt in den neuen Abschnitt zum Maß-Schritt.
+* `PAYLOAD_VERSION = 2` mit Migration 1 → 2 (einzelnes Projekt → Liste). Alte
+  bezahlte Links bleiben dauerhaft einlösbar; `scripts/test-betrieb.ts` prüft
+  das mit echten Version-1-Daten. Acht Abschnitte brauchen dank Kompression
+  genauso viele Metadata-Felder wie einer (2).
+* Preis: `quantity = Abschnitte` in der Stripe-Session.
+* Grafik „Abschnitt 2 von 4“: Geometrie in `abschnittsStreifen()`, gerendert
+  von `components/AbschnittSVG.tsx` (Bildschirm) und
+  `lib/pdf/abschnittsgrafik.ts` (PDF) – proportional zu den Längen, weil genau
+  das die Information ist. `aktiv = -1` = kein Abschnitt hervorgehoben
+  (Gesamtliste).
+* `lib/dokumente.ts` ist die einzige Antwort auf „welche Dateien bekommt der
+  Kunde?“: je Abschnitt Bauplan/Biegeliste/Stückliste, ab zwei Abschnitten
+  zusätzlich `lib/pdf/gesamtliste.ts` (Bestellmengen über alles, nach
+  Erzeugnis zusammengefasst – das Blatt für den Händler). Ausgeliefert wird
+  **eine ZIP-Datei** (jszip, `compression: "STORE"`), die auf der Erfolgsseite
+  von selbst lädt; `/api/dokumente` kennt zusätzlich `plan: true` (Dateiliste)
+  und den Einzelabruf. Dateinamen mit führender Abschnittsnummer, damit im
+  Download-Ordner nicht vier gleich heißende Baupläne liegen.
 
 ## Regelwerk AT/DE
 
@@ -70,7 +107,9 @@ das beim Anfassen eines anderen Bauteils, ist etwas kaputt.
 ## Offen vor dem Live-Gang
 
 **Software (erledigt):** Git-Historie, Demo-Riegel, Fehleralarm,
-Payload-Version, Rate-Limit, Schutz-Header, CI, robots/sitemap/OG-Bild.
+Payload-Version, Rate-Limit, Schutz-Header, CI, robots/sitemap/OG-Bild,
+Preis- und Leistungstexte auf Startseite, Beispiele und Nutzungsbedingungen
+an die abschnittsweise Abrechnung angepasst.
 
 **Software (offen):**
 
@@ -80,6 +119,7 @@ Payload-Version, Rate-Limit, Schutz-Header, CI, robots/sitemap/OG-Bild.
 * Statistikdienst buchen und die zwei Variablen eintragen (der Code steht).
 * Test auf echten Geräten (iPhone, Android) und ein Durchlauf mit einer
   Person, die die App nicht kennt.
+* Push auf GitHub, damit die CI den Stand sieht.
 
 **Nicht-Software (Lukas):**
 
@@ -91,8 +131,10 @@ Payload-Version, Rate-Limit, Schutz-Header, CI, robots/sitemap/OG-Bild.
 * Rechnungsstellung in Stripe aktivieren und Pflichtangaben prüfen.
 * Versicherung: ausdrücklich klären, ob die bestehende Haftpflicht ein
   Werkzeug abdeckt, aus dem Bauunterlagen entstehen.
-* Preis als Bruttopreis inkl. USt ausweisen.
+* Preis als Bruttopreis inkl. USt ausweisen – und die Platzhalter in
+  Abschnitt 3 der Nutzungsbedingungen ausfüllen (dort steht jetzt auch die
+  Abrechnung je Wandabschnitt).
 * Vercel-Plan: Hobby ist für nicht-kommerzielle Nutzung gedacht → Pro buchen.
 
-**Fachlich (Partner):** Review aller Berechnungen und Konstruktionsregeln,
-Abstimmung mit der Kammer.
+**Fachlich (Partner):** Review aller Berechnungen und Konstruktionsregeln
+erledigt; offen bleibt die Abstimmung mit der Kammer.

@@ -238,7 +238,7 @@ export default function Beispiele() {
 
       {/* ---------------- Dokumente ---------------- */}
       <section className="start-block">
-        <h3>Die drei Dokumente</h3>
+        <h3>Die drei Dokumente je Bauteil</h3>
         <div className="start-dokumente">
           <article className="start-dokument">
             <div className="vorschaurahmen">
@@ -411,7 +411,7 @@ export default function Beispiele() {
             <h4>Erscheint mein Firmenlogo im Plan?</h4>
             <p>
               Ja, Sie laden es im vorletzten Schritt hoch. Es erscheint im
-              Schriftkopf aller drei Dokumente.
+              Schriftkopf jedes erzeugten Dokuments.
             </p>
           </div>
           <div>
@@ -447,10 +447,25 @@ export default function Beispiele() {
             </p>
           </div>
           <div>
+            <h4>Meine Wand ist zu lang für einen Plan – was dann?</h4>
+            <p>
+              Wände lassen sich in Betonierabschnitte teilen, so wie sie auch
+              geschalt werden. Jeder Abschnitt hat eigene Länge, eigene
+              Öffnungen und eigene Ränder; an der Fuge steht beidseits „Wand
+              läuft weiter“. Eine kleine Grafik zeigt jederzeit, in welchem
+              Abschnitt Sie gerade sind – dieselbe Grafik steht später auf Plan
+              und Stückliste. Sie erhalten je Abschnitt die drei Dokumente, dazu
+              eine Gesamt-Stückliste zum Bestellen, alles in einer ZIP-Datei.
+            </p>
+          </div>
+          <div>
             <h4>Wie wird bezahlt?</h4>
             <p>
               Einmalig pro Berechnung über Stripe – Karte, Apple&nbsp;Pay oder
-              EPS. Kein Konto, keine wiederkehrenden Kosten.
+              EPS. Kein Konto, keine wiederkehrenden Kosten. Eine geteilte Wand
+              kostet je Abschnitt, weil jeder Abschnitt einen vollständigen
+              eigenen Satz Unterlagen ergibt; der Gesamtbetrag steht vor dem
+              Bezahlen auf der Schaltfläche.
             </p>
           </div>
           <div>
