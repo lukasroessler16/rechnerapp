@@ -50,6 +50,8 @@ export const wand: Bauteilmodul = {
   kategorie: "waende",
   bildId: "icon_wand",
   hatOeffnungen: true,
+  // Lange Wände werden in Betonierabschnitte geteilt – siehe lib/abschnitte.ts
+  teilbar: true,
   flaechenbewehrt: true,
   oeffnungsTypen: ["fenster", "tuer", "aussparung"],
   detailTitel: "Anschlussdetails",

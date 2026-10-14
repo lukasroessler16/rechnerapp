@@ -27,17 +27,27 @@
  * festgehalten, damit ein altes Dokument nachvollziehbar bleibt.
  */
 
-/** Aktuelles Format der in der Zahlungssession gespeicherten Projektdaten */
-export const PAYLOAD_VERSION = 1;
+/**
+ * Aktuelles Format der in der Zahlungssession gespeicherten Projektdaten.
+ *
+ * 1 – ein einzelnes Projekt als Objekt
+ * 2 – eine Liste von Abschnitten (auch bei nur einem)
+ */
+export const PAYLOAD_VERSION = 2;
 
 /**
  * Migrationen von älteren Formaten auf das aktuelle.
  * Schlüssel = Ausgangsversion. Jede Funktion hebt die Daten um genau eine
- * Version an; metadataZuProjekt() wendet sie der Reihe nach an.
- *
- * Noch leer – Version 1 ist die erste veröffentlichte Fassung.
+ * Version an; metadataZuBauvorhaben() wendet sie der Reihe nach an.
  */
-export const MIGRATIONEN: Record<number, (daten: unknown) => unknown> = {};
+export const MIGRATIONEN: Record<number, (daten: unknown) => unknown> = {
+  /**
+   * 1 → 2: Früher stand ein einzelnes Projekt in der Session, heute eine
+   * Liste von Abschnitten. Eine alte Zahlung ist genau ein Abschnitt – der
+   * Link aus einer Mail von damals muss weiter funktionieren.
+   */
+  1: (daten) => (Array.isArray(daten) ? daten : [daten]),
+};
 
 /**
  * Code-Stand, mit dem gerade gerechnet wird.

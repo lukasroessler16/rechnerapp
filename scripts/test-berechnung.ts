@@ -8,7 +8,7 @@
  */
 import { berechneBewehrung, oeffnungsDetails } from "../lib/bewehrung";
 import { MATTEN_STOESSE, MATTEN_STOSS_STANDARD } from "../lib/normdaten";
-import { projektZuMetadata, metadataZuProjekt } from "../lib/payload";
+import { projektZuMetadata, metadataZuBauvorhaben } from "../lib/payload";
 import { pruefeProjekt } from "../lib/validierung";
 import {
   BAUTEILE,
@@ -506,7 +506,7 @@ const boeserWinkel: Projekt = {
 };
 let abgefangen = false;
 try {
-  metadataZuProjekt(projektZuMetadata(boeserWinkel));
+  metadataZuBauvorhaben(projektZuMetadata([boeserWinkel]));
 } catch {
   abgefangen = true;
 }
@@ -618,19 +618,18 @@ for (const modul of BAUTEILE) {
 console.log("Alle Bauteile rechnen auch im DIN-Modus");
 
 // Serverseitig darf keine Mischung aus zwei Anhängen durchkommen
-const gemischt = metadataZuProjekt(
-  projektZuMetadata({
-    ...wand,
-    parameter: { ...wand.parameter, regelwerk: "de", stahlguete: "B550B" },
-  })
-);
+const gemischt = metadataZuBauvorhaben(
+  projektZuMetadata([
+    { ...wand, parameter: { ...wand.parameter, regelwerk: "de", stahlguete: "B550B" } },
+  ])
+)[0];
 if (gemischt.parameter.stahlguete !== "B500A" && gemischt.parameter.stahlguete !== "B500B")
   throw new Error(
     `Eine im DIN-Modus unzulässige Stahlsorte muss ersetzt werden, blieb aber ${gemischt.parameter.stahlguete}.`
   );
-const unsinn = metadataZuProjekt(
-  projektZuMetadata({ ...wand, parameter: { ...wand.parameter, regelwerk: "ch" } })
-);
+const unsinn = metadataZuBauvorhaben(
+  projektZuMetadata([{ ...wand, parameter: { ...wand.parameter, regelwerk: "ch" } }])
+)[0];
 if (unsinn.parameter.regelwerk !== "at")
   throw new Error("Ein unbekanntes Regelwerk muss auf den Standard zurückfallen.");
 console.log("Serverseitige Prüfung des Regelwerks OK");
@@ -842,12 +841,9 @@ for (const stoss of MATTEN_STOESSE) {
 
 // Serverseitig darf kein beliebiger Stoß durchkommen – sonst ließe sich die
 // Mattenzahl von außen kleinrechnen.
-const gemogelt = metadataZuProjekt(
-  projektZuMetadata({
-    ...wand,
-    parameter: { ...wand.parameter, mattenstoss: 5 },
-  })
-);
+const gemogelt = metadataZuBauvorhaben(
+  projektZuMetadata([{ ...wand, parameter: { ...wand.parameter, mattenstoss: 5 } }])
+)[0];
 if (gemogelt.parameter.mattenstoss !== MATTEN_STOSS_STANDARD)
   throw new Error("Ein unzulässiger Mattenstoß muss auf den Standardwert zurückfallen.");
 console.log("Unzulässiger Mattenstoß wird serverseitig verworfen");
@@ -857,8 +853,8 @@ console.log("Unzulässiger Mattenstoß wird serverseitig verworfen");
 /* ------------------------------------------------------------------ */
 
 for (const p of [wand, decke, boden, stuetze, traeger, fundament, einzel, mauer]) {
-  const meta = projektZuMetadata(p);
-  const zurueck = metadataZuProjekt(meta);
+  const meta = projektZuMetadata([p]);
+  const zurueck = metadataZuBauvorhaben(meta)[0];
   const erwartet = { ...p, firmendaten: { ...p.firmendaten, logoDataUrl: undefined } };
   if (JSON.stringify(erwartet) !== JSON.stringify(zurueck))
     throw new Error(`Payload-Roundtrip fehlgeschlagen für ${p.bauteil}`);

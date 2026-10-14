@@ -211,6 +211,12 @@ export interface Bauteilmodul {
   /** Hat dieses Bauteil Öffnungen (Schritt 3 des Wizards)? */
   hatOeffnungen: boolean;
   /**
+   * Darf das Bauteil in mehrere Abschnitte geteilt werden? Gemeint sind
+   * Betonierabschnitte einer langen Wand – jeder mit eigenen Maßen, Öffnungen
+   * und Rändern, aber gemeinsamen Vorgaben. Ohne Angabe: nein.
+   */
+  teilbar?: boolean;
+  /**
    * Wird das Bauteil flächig mit Lagermatten bewehrt? Nur dann sind Lagen,
    * Mattenwahl und das Raster der Anschlussbewehrung sinnvolle Eingaben.
    * Stabbauteile (Stütze, Träger) wählen ihre Bewehrung selbst.

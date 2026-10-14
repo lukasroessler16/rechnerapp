@@ -19,6 +19,12 @@ export interface DokumentenMail {
   downloadUrl: string;
   /** Gezahlter Betrag, bereits formatiert (z. B. "29,00 €") */
   betrag: string;
+  /**
+   * Anzahl der bezahlten Abschnitte (geteilte Wand). Fehlt oder 1 = ein
+   * Bauteil. Steht in der Mail, damit später nachvollziehbar ist, wofür
+   * gezahlt wurde – bei vier Abschnitten sind es 116 € und dreizehn Blätter.
+   */
+  abschnitte?: number;
 }
 
 /** HTML-Sonderzeichen maskieren (Kundendaten landen im Mailtext) */
@@ -33,14 +39,21 @@ function maskiere(s: string): string {
 export async function sendeDokumentenMail(d: DokumentenMail): Promise<boolean> {
   const vorhaben = maskiere(d.bauvorhaben || "Ihr Projekt");
   const url = d.downloadUrl;
+  const n = d.abschnitte && d.abschnitte > 1 ? d.abschnitte : 0;
+  const inhalt = n
+    ? `je Abschnitt Bauplan, Biegeliste und Stückliste sowie eine Gesamt-Stückliste
+  über alle ${n} Abschnitte – zusammen ${n * 3 + 1} Blätter als ZIP-Datei`
+    : "Bauplan, Biegeliste und Stückliste als ZIP-Datei";
 
   const html = `
 <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;color:#1c2430;line-height:1.55;max-width:560px">
   <h2 style="font-size:19px;margin:0 0 4px">Ihre Bewehrungsdokumente sind bereit</h2>
-  <p style="color:#5a6472;margin:0 0 20px">${vorhaben}</p>
+  <p style="color:#5a6472;margin:0 0 20px">${vorhaben}${
+    n ? ` · ${n} Abschnitte` : ""
+  }</p>
 
   <p>Vielen Dank für Ihre Zahlung über ${maskiere(d.betrag)}. Über den folgenden
-  Link laden Sie Bauplan, Biegeliste und Stückliste als PDF herunter:</p>
+  Link laden Sie ${inhalt} herunter:</p>
 
   <p style="margin:24px 0">
     <a href="${url}" style="background:#e8590c;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block">

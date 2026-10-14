@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripeClient } from "@/lib/stripe";
 import { basisUrl } from "@/lib/basis";
-import { metadataZuProjekt } from "@/lib/payload";
+import { metadataZuBauvorhaben } from "@/lib/payload";
 import { sendeDokumentenMail } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -63,11 +63,13 @@ export async function POST(req: NextRequest) {
       } else {
         // Bauvorhaben aus den Metadaten lesen (rein kosmetisch für die Mail)
         let bauvorhaben = "";
+        let anzahlAbschnitte = 1;
         try {
-          const projekt = metadataZuProjekt(
+          const abschnitte = metadataZuBauvorhaben(
             (session.metadata ?? {}) as Record<string, string>
           );
-          bauvorhaben = projekt.firmendaten.bauvorhaben;
+          bauvorhaben = abschnitte[0].firmendaten.bauvorhaben;
+          anzahlAbschnitte = abschnitte.length;
         } catch {
           /* ohne Bauvorhaben versenden */
         }
@@ -82,6 +84,7 @@ export async function POST(req: NextRequest) {
           bauvorhaben,
           downloadUrl: `${basisUrl(req)}/erfolg?session_id=${session.id}`,
           betrag,
+          abschnitte: anzahlAbschnitte,
         });
         console.log(
           `[Webhook] Dokumenten-Mail an ${empfaenger}: ${erfolgreich ? "versendet" : "NICHT versendet"}`

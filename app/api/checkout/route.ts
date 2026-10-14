@@ -14,7 +14,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { stripeClient } from "@/lib/stripe";
-import { validiereProjekt, projektZuMetadata } from "@/lib/payload";
+import { validiereBauvorhaben, projektZuMetadata } from "@/lib/payload";
+import { bauteilModul } from "@/lib/bauteile";
 import { basisUrl } from "@/lib/basis";
 import { BetriebsFehler, kundenMeldung, melde, stripeSchluessel } from "@/lib/betrieb";
 import { pruefeLimit } from "@/lib/ratelimit";
@@ -36,7 +37,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const { projekt: roh, verzichtBestaetigt } = await req.json();
-    const projekt = validiereProjekt(roh);
+    // Der Client schickt eine Liste von Abschnitten; ältere Aufrufe mit einem
+    // einzelnen Projekt werden davon mit abgedeckt.
+    const bauvorhaben = validiereBauvorhaben(roh);
+    const abschnitte = bauvorhaben.length;
 
     // Rücktrittsverzicht (§ 18 Abs. 1 Z 11 FAGG): Ohne ausdrückliche
     // Zustimmung darf die Zahlung nicht starten. Serverseitig geprüft, damit
@@ -63,20 +67,28 @@ export async function POST(req: NextRequest) {
       // Zahlarten steuert das Stripe-Dashboard (Karte, EPS, Klarna, …)
       line_items: [
         {
-          quantity: 1,
+          // Jeder Abschnitt ist ein eigener vollständiger Plan und kostet
+          // entsprechend. Die Zahl kommt aus den geprüften Daten, nicht aus
+          // einem Feld, das der Client frei setzen könnte.
+          quantity: abschnitte,
           price_data: {
             currency: "eur",
             unit_amount: PREIS_CENT,
             product_data: {
-              name: "Bewehrungsrechner – Dokumentenpaket",
+              name: `Bewehrungsrechner – ${bauteilModul(bauvorhaben[0].bauteil).name}`,
               description:
-                "Bauplan, Biegeliste und Stückliste (PDF) für einen Berechnungsdurchlauf",
+                abschnitte > 1
+                  ? `Bauplan, Biegeliste und Stückliste je Abschnitt (${abschnitte} Abschnitte) sowie eine Gesamt-Stückliste`
+                  : "Bauplan, Biegeliste und Stückliste (PDF) für einen Berechnungsdurchlauf",
             },
           },
         },
       ],
       metadata: {
-        ...projektZuMetadata(projekt),
+        ...projektZuMetadata(bauvorhaben),
+        // Zahl der Abschnitte zusätzlich im Klartext – so steht im
+        // Stripe-Dashboard, wofür bezahlt wurde, ohne die Daten auszupacken.
+        abschnitte: String(abschnitte),
         // Nachweis der Zustimmung zum Rücktrittsverzicht, dauerhaft bei
         // der Zahlung dokumentiert
         widerrufsverzicht: new Date().toISOString(),

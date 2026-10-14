@@ -19,6 +19,7 @@
 import { deflateSync, inflateSync } from "zlib";
 import { MATTEN_STOSS_STANDARD, istMattenstoss } from "./normdaten";
 import { Projekt } from "./types";
+import { Bauvorhaben, MAX_ABSCHNITTE, begrenzeAbschnitte, vereinheitliche } from "./abschnitte";
 import { alleMassfelder, bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
 import { istRegelwerk, regelwerkVon, STANDARD_REGELWERK } from "./regelwerk";
 import { MIGRATIONEN, PAYLOAD_VERSION, codeStand } from "./version";
@@ -27,15 +28,20 @@ const CHUNK = 450;
 const MAX_CHUNKS = 40;
 
 /**
- * Projekt → Metadata-Objekt
+ * Bauvorhaben → Metadata-Objekt
  * { v: Format, b: Code-Stand, n: Anzahl Chunks, p0..pn: Chunks }
+ *
+ * Gespeichert wird immer eine Liste von Abschnitten, auch bei nur einem –
+ * das spart beim Lesen die Fallunterscheidung. Mehrere Abschnitte einer Wand
+ * ähneln einander stark, weshalb die Komprimierung sie fast gratis mitnimmt:
+ * acht Abschnitte brauchen kaum mehr Platz als einer.
  */
-export function projektZuMetadata(projekt: Projekt): Record<string, string> {
+export function projektZuMetadata(bauvorhaben: Bauvorhaben): Record<string, string> {
   // Logo niemals in die Metadata aufnehmen (Größenlimit!)
-  const schlank: Projekt = {
-    ...projekt,
-    firmendaten: { ...projekt.firmendaten, logoDataUrl: undefined },
-  };
+  const schlank = bauvorhaben.map((p) => ({
+    ...p,
+    firmendaten: { ...p.firmendaten, logoDataUrl: undefined },
+  }));
   const b64 = deflateSync(Buffer.from(JSON.stringify(schlank), "utf8")).toString(
     "base64url"
   );
@@ -69,8 +75,8 @@ export function metadataHerkunft(meta: Record<string, string>): PayloadHerkunft 
   };
 }
 
-/** Metadata-Objekt → Projekt (wirft bei ungültigen Daten) */
-export function metadataZuProjekt(meta: Record<string, string>): Projekt {
+/** Metadata-Objekt → Bauvorhaben (wirft bei ungültigen Daten) */
+export function metadataZuBauvorhaben(meta: Record<string, string>): Bauvorhaben {
   const n = parseInt(meta["n"] ?? "0", 10);
   if (!n) throw new Error("Keine Projektdaten in der Zahlungssession.");
 
@@ -96,7 +102,22 @@ export function metadataZuProjekt(meta: Record<string, string>): Projekt {
     daten = migration(daten);
   }
 
-  return validiereProjekt(daten);
+  return validiereBauvorhaben(daten);
+}
+
+/**
+ * Prüft und begrenzt ein ganzes Bauvorhaben.
+ *
+ * Die Zahl der Abschnitte bestimmt den Preis, deshalb wird sie hier und nicht
+ * nur in der Oberfläche begrenzt. Gemeinsame Angaben werden vereinheitlicht,
+ * damit keine Mischung aus zwei Regelwerken oder zwei Schriftköpfen entsteht.
+ */
+export function validiereBauvorhaben(roh: unknown): Bauvorhaben {
+  const liste = Array.isArray(roh) ? roh : [roh];
+  if (liste.length === 0) throw new Error("Keine Abschnitte im Bauvorhaben.");
+  if (liste.length > MAX_ABSCHNITTE)
+    throw new Error(`Höchstens ${MAX_ABSCHNITTE} Abschnitte je Bauvorhaben.`);
+  return begrenzeAbschnitte(vereinheitliche(liste.map(validiereProjekt)));
 }
 
 /** Grund-Validierung + Begrenzung der Eingaben (Server-Seite) */

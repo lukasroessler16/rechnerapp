@@ -8,10 +8,17 @@
  * Firmendaten/Logo sind rein kosmetisch und dürfen vom Client kommen
  * (das Logo wird aus Größengründen nicht über Stripe geführt).
  *
- * Body: { typ: "bauplan"|"biegeliste"|"stueckliste",
- *         session_id?: string,           // normaler Weg (nach Zahlung)
- *         demo?: boolean, projekt?: {…}, // nur wenn Demo ausdrücklich erlaubt
+ * Body: { plan: true,                      // nur die Liste der Dateien
+ *         paket: true,                     // alles als ZIP (Normalfall)
+ *         typ: "bauplan"|"biegeliste"|"stueckliste"|"gesamtliste",
+ *         abschnitt?: number,              // 0-basiert, nur bei mehreren
+ *         session_id?: string,             // normaler Weg (nach Zahlung)
+ *         demo?: boolean, projekt?: {…},   // nur wenn Demo ausdrücklich erlaubt
  *         firmendaten?: {…} }
+ *
+ * Eine geteilte Wand bringt bis zu 8 × 3 + 1 = 25 Blätter hervor. Sie einzeln
+ * abzurufen hieße 25 Anfragen und 25 Dateien im Download-Ordner; deshalb ist
+ * das ZIP der Normalfall und der Einzelabruf die Rückfallebene.
  *
  * Scheitert hier etwas NACH der Zahlung, ist das der teuerste Fehlerfall der
  * ganzen Anwendung: Der Kunde hat bezahlt und steht ohne Unterlagen da.
@@ -20,12 +27,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import JSZip from "jszip";
 import { stripeClient } from "@/lib/stripe";
-import { metadataHerkunft, metadataZuProjekt, validiereProjekt } from "@/lib/payload";
-import { berechneBewehrung } from "@/lib/bewehrung";
-import { erzeugeBauplan } from "@/lib/pdf/bauplan";
-import { erzeugeBiegeliste } from "@/lib/pdf/biegeliste";
-import { erzeugeStueckliste } from "@/lib/pdf/stueckliste";
+import {
+  metadataHerkunft,
+  metadataZuBauvorhaben,
+  validiereBauvorhaben,
+  validiereProjekt,
+} from "@/lib/payload";
+import { Bauvorhaben } from "@/lib/abschnitte";
+import {
+  Dokumenttyp,
+  dateiname,
+  erzeugeAlle,
+  erzeugeDokument,
+  istDokumenttyp,
+  paketname,
+  dokumentplan,
+} from "@/lib/dokumente";
 import { Projekt } from "@/lib/types";
 import { BetriebsFehler, demoErlaubt, kundenMeldung, melde } from "@/lib/betrieb";
 import { pruefeLimit } from "@/lib/ratelimit";
@@ -33,15 +52,10 @@ import { codeStand, dokumentStempel } from "@/lib/version";
 
 export const runtime = "nodejs";
 
-const DATEINAMEN: Record<string, string> = {
-  bauplan: "Bauplan.pdf",
-  biegeliste: "Biegeliste.pdf",
-  stueckliste: "Stueckliste.pdf",
-};
-
 export async function POST(req: NextRequest) {
-  // Großzügig genug für „alle drei Dokumente, zweimal heruntergeladen“,
-  // eng genug, damit eine Schleife nicht dauerhaft Rechenzeit verbraucht.
+  // Großzügig genug für „alles einmal als ZIP und danach ein paar Blätter
+  // einzeln", eng genug, damit eine Schleife nicht dauerhaft Rechenzeit
+  // verbraucht.
   const limit = pruefeLimit(req, "dokumente", 30, 60);
   if (!limit.erlaubt) {
     return NextResponse.json(
@@ -57,11 +71,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const typ = String(body.typ);
-    if (!DATEINAMEN[typ]) throw new BetriebsFehler("Unbekannter Dokumenttyp.");
+    const paket = body.paket === true;
+    /** nur die Liste der Dateien, ohne sie zu erzeugen */
+    const nurPlan = body.plan === true;
+    /** nur bei Einzelabruf belegt */
+    let art: Dokumenttyp | "gesamtliste" = "bauplan";
+    if (!paket && !nurPlan) {
+      const roh = String(body.typ);
+      if (!istDokumenttyp(roh) && roh !== "gesamtliste")
+        throw new BetriebsFehler("Unbekannter Dokumenttyp.");
+      art = roh as Dokumenttyp | "gesamtliste";
+    }
 
     const schluessel = process.env.STRIPE_SECRET_KEY;
-    let projekt: Projekt;
+    let bauvorhaben: Bauvorhaben;
     let herkunftStand = codeStand();
 
     if (body.session_id) {
@@ -86,24 +109,46 @@ export async function POST(req: NextRequest) {
       // Code-Stand der Zahlung, nicht der von heute: So steht auf dem Blatt,
       // mit welchem Programmstand gekauft wurde.
       herkunftStand = metadataHerkunft(meta).codeStand;
-      projekt = metadataZuProjekt(meta);
+      bauvorhaben = metadataZuBauvorhaben(meta);
     } else if (body.demo === true && demoErlaubt()) {
       /* ---------- Demo: nur wenn ausdrücklich erlaubt ---------- */
-      melde("dokumente", "Demo-Ausgabe ohne Zahlung.", { typ }, "warnung");
-      projekt = validiereProjekt(body.projekt);
+      if (!nurPlan)
+        melde("dokumente", "Demo-Ausgabe ohne Zahlung.", { paket, art }, "warnung");
+      bauvorhaben = validiereBauvorhaben(body.projekt);
     } else {
       throw new BetriebsFehler("Keine gültige Zahlungssession.", undefined, 402);
     }
 
-    // Kosmetische Firmendaten (inkl. Logo) vom Client übernehmen
+    /* ---------- Kosmetische Firmendaten (inkl. Logo) vom Client ---------- */
+    // Sie gelten für das ganze Bauvorhaben: Alle Blätter tragen denselben
+    // Schriftkopf, sonst sieht Abschnitt 3 nach einer anderen Firma aus.
     if (body.firmendaten && typeof body.firmendaten === "object") {
       const fd = body.firmendaten as Projekt["firmendaten"];
       const logo =
         typeof fd.logoDataUrl === "string" && fd.logoDataUrl.length < 800_000
           ? fd.logoDataUrl
           : undefined;
-      projekt.firmendaten = validiereProjekt({ ...projekt, firmendaten: fd }).firmendaten;
-      projekt.firmendaten.logoDataUrl = logo;
+      const geprueft = validiereProjekt({ ...bauvorhaben[0], firmendaten: fd }).firmendaten;
+      for (const p of bauvorhaben) {
+        p.firmendaten = { ...geprueft, logoDataUrl: logo };
+      }
+    }
+
+    /* ---------- Nur der Dateiplan ---------- */
+    // Die Erfolgsseite weiß aus sich heraus nicht, wie viele Abschnitte
+    // bezahlt wurden – über den E-Mail-Link ist der Browserspeicher längst
+    // leer. Die Liste kommt deshalb von derselben Stelle, die die Dateien
+    // erzeugt (und nach der Übernahme der Firmendaten, damit die angezeigten
+    // Dateinamen genau die sind, die auch geliefert werden).
+    if (nurPlan) {
+      return NextResponse.json(
+        {
+          abschnitte: bauvorhaben.length,
+          paketname: paketname(bauvorhaben),
+          dokumente: dokumentplan(bauvorhaben),
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     const stempel = dokumentStempel({
@@ -111,18 +156,39 @@ export async function POST(req: NextRequest) {
       sessionId,
     });
 
-    const ergebnis = berechneBewehrung(projekt);
-    const pdf =
-      typ === "bauplan"
-        ? await erzeugeBauplan(projekt, ergebnis, stempel)
-        : typ === "biegeliste"
-          ? await erzeugeBiegeliste(projekt, ergebnis, stempel)
-          : await erzeugeStueckliste(projekt, ergebnis, stempel);
+    /* ---------- Alles als ZIP ---------- */
+    if (paket) {
+      const dateien = await erzeugeAlle(bauvorhaben, stempel);
+      const zip = new JSZip();
+      for (const d of dateien) zip.file(d.name, d.daten);
+      // STORE statt DEFLATE: PDFs sind intern schon komprimiert, erneutes
+      // Packen bringt kaum etwas und kostet auf dem Server messbar Zeit.
+      const inhalt = await zip.generateAsync({ type: "nodebuffer", compression: "STORE" });
+      return new NextResponse(new Uint8Array(inhalt), {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition": `attachment; filename="${paketname(bauvorhaben)}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
 
-    return new NextResponse(Buffer.from(pdf), {
+    /* ---------- Einzelnes Blatt ---------- */
+    const abschnitt = Math.min(
+      Math.max(0, Number.isFinite(Number(body.abschnitt)) ? Number(body.abschnitt) : 0),
+      bauvorhaben.length - 1
+    );
+    if (art === "gesamtliste" && bauvorhaben.length < 2)
+      throw new BetriebsFehler("Eine Gesamt-Stückliste gibt es erst ab zwei Abschnitten.");
+    const pdf = await erzeugeDokument(bauvorhaben, art, abschnitt, stempel);
+    const name = dateiname(art, bauvorhaben[0].firmendaten.bauvorhaben, {
+      nr: abschnitt + 1,
+      von: art === "gesamtliste" ? 1 : bauvorhaben.length,
+    });
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${DATEINAMEN[typ]}"`,
+        "Content-Disposition": `attachment; filename="${name}"`,
         "Cache-Control": "no-store",
       },
     });

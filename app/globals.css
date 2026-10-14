@@ -929,3 +929,116 @@ table.vergleich tbody tr:last-child td {
   color: var(--ink-soft);
   margin-left: 8px;
 }
+
+/* ------------------------------------------------------------------ */
+/* Wand in Abschnitten                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Leiste über der Schrittfolge: erst welcher Abschnitt, dann welcher Schritt */
+.abschnitte-leiste {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfbfc;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+}
+.abschnitte-reiter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.abschnitt-reiter {
+  min-width: 34px;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.abschnitt-reiter:hover { border-color: var(--accent); color: var(--ink); }
+.abschnitt-reiter.aktiv {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.abschnitt-reiter.neu { font-weight: 500; color: var(--accent); }
+/* Entfernen steht bewusst rechts und unauffällig: Es löscht Eingaben. */
+.abschnitt-weg {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.abschnitt-weg:hover { color: var(--fehler); }
+
+/* Übersichtsgrafik „Abschnitt 2 von 4“ */
+.abschnittsgrafik { margin-top: 10px; }
+.abschnittsgrafik svg { display: block; overflow: visible; }
+.abschnitt-streifen rect {
+  fill: #e4e7ec;
+  stroke: #b9c0ca;
+  stroke-width: 1;
+}
+.abschnitt-streifen.aktiv rect {
+  fill: #fde3d1;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.abschnitt-streifen.klickbar { cursor: pointer; }
+.abschnitt-streifen.klickbar:hover rect { stroke: var(--accent); }
+.streifen-nr {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--ink-soft);
+}
+.abschnitt-streifen.aktiv .streifen-nr { fill: var(--accent); }
+.streifen-mass { font-size: 9.5px; fill: var(--ink-soft); }
+.streifen-kette { stroke: #b9c0ca; stroke-width: 1; }
+.abschnitt-fuss {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.abschnitt-fuss strong { color: var(--ink); }
+
+/* Abschnittstabelle in der Ergebnisvorschau */
+.abschnitt-tabelle {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.abschnitt-tabelle th,
+.abschnitt-tabelle td {
+  border-bottom: 1px solid var(--line);
+  padding: 5px 7px;
+  text-align: left;
+}
+.abschnitt-tabelle th {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+  background: #f0f2f5;
+}
+.abschnitt-tabelle .zahl { text-align: right; font-variant-numeric: tabular-nums; }
+.abschnitt-tabelle tbody tr { cursor: pointer; }
+.abschnitt-tabelle tbody tr:hover td { background: #f7f8fa; }
+.abschnitt-tabelle tbody tr.aktiv td {
+  background: #fff4ec;
+  font-weight: 600;
+}

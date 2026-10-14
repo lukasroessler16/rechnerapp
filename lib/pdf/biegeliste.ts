@@ -36,7 +36,9 @@ export async function erzeugeBiegeliste(
   projekt: Projekt,
   ergebnis: Ergebnis,
   /** Herkunftsvermerk (Code-Stand, Zahlungsreferenz) für den Blattfuß */
-  stempel?: string
+  stempel?: string,
+  /** Längen aller Abschnitte und Index des hier gezeigten (bei geteilter Wand) */
+  abschnitte?: { laengen: number[]; aktiv: number }
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle("Biegeliste – Bewehrungsrechner");
@@ -73,7 +75,16 @@ export async function erzeugeBiegeliste(
     seiteNr++;
     const seite = doc.addPage([mm(210), mm(297)]);
     z = new Zeichner(seite, fonts);
-    await listenKopf(doc, z, "BIEGELISTE", projekt.firmendaten, seiteNr);
+    const geteilt = !!abschnitte && abschnitte.laengen.length > 1;
+    await listenKopf(
+      doc,
+      z,
+      geteilt
+        ? `BIEGELISTE · ABSCHNITT ${abschnitte!.aktiv + 1} VON ${abschnitte!.laengen.length}`
+        : "BIEGELISTE",
+      projekt.firmendaten,
+      seiteNr
+    );
     z.text(
       `Betonstahl ${projekt.parameter.stahlguete} (${regelwerk.betonstahlNorm}) · Beton ${projekt.parameter.betonklasse} · c_nom ${projekt.parameter.betondeckung} mm · ${regelwerk.normKurz}`,
       15,

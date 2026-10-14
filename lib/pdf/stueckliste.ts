@@ -6,6 +6,7 @@
 
 import { PDFDocument } from "pdf-lib";
 import { nachGruppen } from "../gruppen";
+import { zeichneAbschnitte } from "./abschnittsgrafik";
 import { Projekt, Ergebnis } from "../types";
 import { bauteilModul } from "../bauteile";
 import { regelwerkVon } from "../regelwerk";
@@ -30,6 +31,8 @@ export async function erzeugeStueckliste(
   ergebnis: Ergebnis,
   /** Herkunftsvermerk (Code-Stand, Zahlungsreferenz) für den Blattfuß */
   stempel?: string,
+  /** Längen aller Abschnitte und Index des hier gezeigten (bei geteilter Wand) */
+  abschnitte?: { laengen: number[]; aktiv: number },
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle("Stückliste – Bewehrungsrechner");
@@ -61,6 +64,8 @@ export async function erzeugeStueckliste(
    *   mehr folgen (Summenblock): Eine Spaltenüberschrift ohne Zeilen darunter
    *   sieht nach einem Fehler aus.
    */
+  const geteilt = !!abschnitte && abschnitte.laengen.length > 1;
+
   const neueSeite = async (mitKopfzeile = true) => {
     seiteNr++;
     const seite = doc.addPage([mm(210), mm(297)]);
@@ -68,7 +73,9 @@ export async function erzeugeStueckliste(
     await listenKopf(
       doc,
       z,
-      "STÜCKLISTE BAUSTAHL",
+      geteilt
+        ? `STÜCKLISTE BAUSTAHL · ABSCHNITT ${abschnitte!.aktiv + 1} VON ${abschnitte!.laengen.length}`
+        : "STÜCKLISTE BAUSTAHL",
       projekt.firmendaten,
       seiteNr,
     );
@@ -80,6 +87,18 @@ export async function erzeugeStueckliste(
       { farbe: GRAU },
     );
     y = START_Y;
+    // Auf der ersten Seite die Abschnittsgrafik; sie beantwortet beim
+    // Abhaken auf der Baustelle, welcher Abschnitt gerade in der Hand ist.
+    if (geteilt && seiteNr === 1) {
+      y -= zeichneAbschnitte(z, {
+        laengen: abschnitte!.laengen,
+        aktiv: abschnitte!.aktiv,
+        x: 15,
+        y: y - 8,
+        breite: 180,
+      });
+      y -= 4;
+    }
     if (mitKopfzeile) kopfzeile();
   };
 

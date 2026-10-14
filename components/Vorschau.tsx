@@ -11,6 +11,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { nachGruppen } from "@/lib/gruppen";
+import AbschnittSVG from "./AbschnittSVG";
 import { useRouter } from "next/navigation";
 import { ereignis } from "@/lib/statistik";
 import { Projekt } from "@/lib/types";
@@ -18,6 +19,13 @@ import { berechneBewehrung } from "@/lib/bewehrung";
 import { hatFehler, pruefeProjekt } from "@/lib/validierung";
 
 const PREIS = process.env.NEXT_PUBLIC_PREIS_EUR ?? "29";
+
+/** Gesamtpreis: je Abschnitt ein vollständiger Plan, also auch ein Preis */
+function gesamtpreis(abschnitte: number): string {
+  const einzeln = Number(PREIS);
+  if (!isFinite(einzeln)) return PREIS;
+  return (einzeln * abschnitte).toLocaleString("de-AT");
+}
 
 /** Klartext der Biegeformen in der Positionstabelle */
 const FORM_KURZ: Record<string, string> = {
@@ -29,20 +37,54 @@ const FORM_KURZ: Record<string, string> = {
 };
 
 export default function Vorschau({
-  projekt,
+  abschnitte,
+  aktiv,
+  aufAbschnitt,
   nr,
 }: {
-  projekt: Projekt;
+  /** alle Abschnitte des Bauvorhabens – meistens genau einer */
+  abschnitte: Projekt[];
+  /** welcher Abschnitt im Detail gezeigt wird */
+  aktiv: number;
+  /** Abschnitt wechseln */
+  aufAbschnitt: (i: number) => void;
   /** Nummer in der bauteilabhängigen Schrittfolge */
   nr: number;
 }) {
-  const ergebnis = useMemo(() => berechneBewehrung(projekt), [projekt]);
+  const projekt = abschnitte[Math.min(aktiv, abschnitte.length - 1)];
+  const mehrere = abschnitte.length > 1;
+
+  /** Ergebnis je Abschnitt – auch für die Summen über das ganze Bauvorhaben */
+  const alle = useMemo(
+    () => abschnitte.map((p) => ({ projekt: p, ergebnis: berechneBewehrung(p) })),
+    [abschnitte]
+  );
+  const ergebnis = alle[Math.min(aktiv, alle.length - 1)].ergebnis;
+
+  /** Summen über alle Abschnitte – das ist, was bestellt wird */
+  const summe = useMemo(() => {
+    const stahl = alle.reduce((a, x) => a + x.ergebnis.gesamtgewicht, 0);
+    const beton = alle.reduce((a, x) => a + x.ergebnis.beton.volumen, 0);
+    const bestell = alle.reduce((a, x) => a + x.ergebnis.beton.bestellmenge, 0);
+    return {
+      stahl: Math.round(stahl * 10) / 10,
+      beton: Math.round(beton * 100) / 100,
+      bestellmenge: Math.round(bestell * 10) / 10,
+    };
+  }, [alle]);
+
   // Eingabefehler blockieren die Zahlung – niemand soll für ein
-  // geometrisch unmögliches Bauteil bezahlen.
-  const pruefung = useMemo(() => pruefeProjekt(projekt), [projekt]);
+  // geometrisch unmögliches Bauteil bezahlen. Geprüft werden ALLE Abschnitte:
+  // Es wäre fatal, für vier Pläne zu zahlen, von denen einer unmöglich ist.
+  const pruefungen = useMemo(() => abschnitte.map(pruefeProjekt), [abschnitte]);
+  const pruefung = pruefungen[Math.min(aktiv, pruefungen.length - 1)];
   const eingabeFehler = pruefung.filter((m) => m.schwere === "fehler");
   const eingabeWarnungen = pruefung.filter((m) => m.schwere === "warnung");
-  const gesperrt = hatFehler(pruefung);
+  /** Abschnitte mit blockierenden Fehlern – 1-basiert für die Anzeige */
+  const fehlerhafteAbschnitte = pruefungen
+    .map((pr, i) => (hatFehler(pr) ? i + 1 : 0))
+    .filter((n) => n > 0);
+  const gesperrt = fehlerhafteAbschnitte.length > 0;
   const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const router = useRouter();
@@ -57,17 +99,18 @@ export default function Vorschau({
     ereignis("checkout_gestartet", {
       bauteil: projekt.bauteil,
       regelwerk: projekt.parameter.regelwerk,
+      abschnitte: String(abschnitte.length),
     });
     try {
       // Projekt für die Erfolgsseite sichern (Stripe leitet zurück).
       // Zusätzlich dauerhaft (localStorage): so erscheint das Logo auch dann
       // wieder, wenn der Kunde später über den E-Mail-Link zurückkommt.
-      sessionStorage.setItem("bewehrung_projekt", JSON.stringify(projekt));
+      sessionStorage.setItem("bewehrung_projekt", JSON.stringify(abschnitte));
       localStorage.setItem("bewehrung_firmendaten", JSON.stringify(projekt.firmendaten));
       const antwort = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projekt, verzichtBestaetigt: verzicht }),
+        body: JSON.stringify({ projekt: abschnitte, verzichtBestaetigt: verzicht }),
       });
       const daten = await antwort.json();
       if (!antwort.ok) throw new Error(daten.fehler ?? "Checkout fehlgeschlagen.");
@@ -93,9 +136,67 @@ export default function Vorschau({
     <>
       <h2 className="schritt-titel">{nr} · Ergebnis &amp; Freischaltung</h2>
       <p className="schritt-hilfe">
-        Zusammenfassung der Bewehrungsermittlung. Die vollständigen Dokumente
-        (Bauplan, Biegeliste, Stückliste als PDF) erhalten Sie nach der Zahlung.
+        {mehrere
+          ? `Zusammenfassung über ${abschnitte.length} Abschnitte. Je Abschnitt erhalten Sie Bauplan, Biegeliste und Stückliste, dazu eine Gesamt-Stückliste zum Bestellen.`
+          : "Zusammenfassung der Bewehrungsermittlung. Die vollständigen Dokumente (Bauplan, Biegeliste, Stückliste als PDF) erhalten Sie nach der Zahlung."}
       </p>
+
+      {mehrere && (
+        <section className="gruppe">
+          <h3 className="gruppe-titel">Das ganze Bauvorhaben</h3>
+          <AbschnittSVG
+            laengen={abschnitte.map((p) => p.masse.laenge ?? 0)}
+            aktiv={aktiv}
+            onWechsel={aufAbschnitt}
+          />
+          <div className="kennwert-gitter" style={{ marginTop: 12 }}>
+            <div className="kennwert">
+              <div className="kw-wert">{summe.stahl.toLocaleString("de-AT")} kg</div>
+              <div className="kw-name">Baustahl über alle Abschnitte</div>
+            </div>
+            <div className="kennwert">
+              <div className="kw-wert">{summe.beton.toLocaleString("de-AT")} m³</div>
+              <div className="kw-name">
+                Beton netto · Bestellmenge {summe.bestellmenge.toLocaleString("de-AT")} m³
+              </div>
+            </div>
+            <div className="kennwert">
+              <div className="kw-wert">{abschnitte.length}</div>
+              <div className="kw-name">Abschnitte à {PREIS} €</div>
+            </div>
+          </div>
+          <table className="abschnitt-tabelle">
+            <thead>
+              <tr>
+                <th>Abschnitt</th>
+                <th>Länge</th>
+                <th>Öffnungen</th>
+                <th className="zahl">Stahl</th>
+                <th className="zahl">Beton</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alle.map((x, i) => (
+                <tr
+                  key={i}
+                  className={i === aktiv ? "aktiv" : undefined}
+                  onClick={() => aufAbschnitt(i)}
+                >
+                  <td>{i + 1}</td>
+                  <td>{(x.projekt.masse.laenge ?? 0).toLocaleString("de-AT")} m</td>
+                  <td>{x.projekt.oeffnungen.length}</td>
+                  <td className="zahl">{x.ergebnis.gesamtgewicht.toLocaleString("de-AT")} kg</td>
+                  <td className="zahl">{x.ergebnis.beton.volumen.toLocaleString("de-AT")} m³</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hinweis" style={{ marginTop: 8 }}>
+            Die Kennzahlen darunter gelten für Abschnitt {aktiv + 1}. Zum Wechseln
+            eine Zeile oder einen Abschnitt in der Grafik anklicken.
+          </p>
+        </section>
+      )}
 
       <div className="kennwert-gitter">
         <div className="kennwert">
@@ -142,9 +243,28 @@ export default function Vorschau({
         </div>
       </div>
 
+      {mehrere && fehlerhafteAbschnitte.length > 0 && (
+        <div className="fehlerbox">
+          <strong>
+            Zahlung gesperrt: Fehler in{" "}
+            {fehlerhafteAbschnitte.length === 1
+              ? `Abschnitt ${fehlerhafteAbschnitte[0]}`
+              : `den Abschnitten ${fehlerhafteAbschnitte.join(", ")}`}
+            .
+          </strong>
+          <div style={{ marginTop: 6, fontSize: 12.5 }}>
+            Bitte dort nachsehen – bezahlt wird für alle Abschnitte gemeinsam,
+            also muss auch jeder einzelne stimmen.
+          </div>
+        </div>
+      )}
+
       {eingabeFehler.length > 0 && (
         <div className="fehlerbox">
-          <strong>Eingaben korrigieren – die Zahlung ist bis dahin gesperrt:</strong>
+          <strong>
+            {mehrere ? `Abschnitt ${aktiv + 1}: ` : ""}Eingaben korrigieren – die
+            Zahlung ist bis dahin gesperrt:
+          </strong>
           <ul>
             {eingabeFehler.map((m, i) => (
               <li key={i}>{m.text}</li>
@@ -251,7 +371,11 @@ export default function Vorschau({
                   : undefined
             }
           >
-            {laedt ? "Weiterleitung zu Stripe …" : `Jetzt freischalten – ${PREIS} € (einmalig)`}
+            {laedt
+              ? "Weiterleitung zu Stripe …"
+              : mehrere
+                ? `Jetzt freischalten – ${gesamtpreis(abschnitte.length)} € für ${abschnitte.length} Abschnitte`
+                : `Jetzt freischalten – ${PREIS} € (einmalig)`}
           </button>
           <div style={{ fontSize: 12, color: "#5a6472" }}>
             Sichere Zahlung über Stripe · Karte, Apple&nbsp;Pay, EPS · keine Registrierung

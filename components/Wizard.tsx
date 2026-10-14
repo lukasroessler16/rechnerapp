@@ -15,7 +15,9 @@ import { bauteilModul } from "@/lib/bauteile";
 import { neuesProjekt, normalisiereProjekt } from "@/lib/standardwerte";
 import { pruefeProjekt, schrittZuMeldung } from "@/lib/validierung";
 import { ereignis } from "@/lib/statistik";
+import { MAX_ABSCHNITTE, teilbar } from "@/lib/abschnitte";
 import SkizzeSVG from "./SkizzeSVG";
+import AbschnittSVG from "./AbschnittSVG";
 import {
   Step1Bauteil,
   Step2Masse,
@@ -53,9 +55,25 @@ const TITEL: Record<SchrittSchluessel, string> = {
 };
 
 export default function Wizard() {
-  const [projekt, setProjekt] = useState<Projekt>(neuesProjekt);
+  /*
+   * Der Zustand ist eine LISTE von Abschnitten, auch wenn es meistens genau
+   * einer ist. Eine lange Wand wird in Betonierabschnitte geteilt; jeder ist
+   * ein eigener Plan mit eigenen Maßen, Öffnungen und Rändern. Bauteil,
+   * bautechnische Vorgaben und Firmendaten gelten dagegen für alle gemeinsam
+   * und werden beim Ändern auf alle Abschnitte gezogen (siehe set()).
+   */
+  const [abschnitte, setAbschnitte] = useState<Projekt[]>(() => [neuesProjekt()]);
+  const [aktiv, setAktiv] = useState(0);
   const [schritt, setSchritt] = useState(0);
   const [geladen, setGeladen] = useState(false);
+
+  const projekt = abschnitte[Math.min(aktiv, abschnitte.length - 1)];
+
+  /** Nur den aktuellen Abschnitt ersetzen */
+  const setProjekt = (fn: Projekt | ((p: Projekt) => Projekt)) =>
+    setAbschnitte((liste) =>
+      liste.map((p, i) => (i === aktiv ? (typeof fn === "function" ? fn(p) : fn) : p))
+    );
 
   /*
    * Zustand wiederherstellen (nur im Browser).
@@ -73,9 +91,12 @@ export default function Wizard() {
       const roh = sessionStorage.getItem("bewehrung_projekt");
       if (roh) {
         // normalisieren: Projekte aus älteren Versionen können andere
-        // Maß- und Detailschlüssel haben
+        // Maß- und Detailschlüssel haben. Ältere Sitzungen haben ein
+        // einzelnes Projekt gespeichert, neuere eine Liste von Abschnitten.
+        const gelesen = JSON.parse(roh);
+        const liste = (Array.isArray(gelesen) ? gelesen : [gelesen]).map(normalisiereProjekt);
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setProjekt(normalisiereProjekt(JSON.parse(roh)));
+        setAbschnitte(liste.length ? liste : [neuesProjekt()]);
       } else {
         // Neuer Aufruf: Firmendaten und Logo aus einem früheren Durchlauf
         // übernehmen – Baumeister rechnen meist mehrere Bauteile nacheinander
@@ -101,15 +122,15 @@ export default function Wizard() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      sessionStorage.setItem("bewehrung_projekt", JSON.stringify(projekt));
+      sessionStorage.setItem("bewehrung_projekt", JSON.stringify(abschnitte));
       localStorage.setItem(
         "bewehrung_firmendaten",
-        JSON.stringify(projekt.firmendaten)
+        JSON.stringify(abschnitte[0].firmendaten)
       );
     } catch {
       /* Speicher voll oder gesperrt – Eingaben bleiben trotzdem nutzbar */
     }
-  }, [projekt, geladen]);
+  }, [abschnitte, geladen]);
 
   /**
    * Je Sitzung einmal melden, welcher Schritt am weitesten erreicht wurde.
@@ -118,7 +139,46 @@ export default function Wizard() {
    */
   const gemeldet = useRef(new Set<string>());
 
-  const set: Setzer = (fn) => setProjekt(fn);
+  /**
+   * Eingaben übernehmen.
+   *
+   * Maße, Öffnungen und Anschlüsse gehören dem Abschnitt. Bauteil,
+   * bautechnische Parameter und Firmendaten gehören dem Bauvorhaben und
+   * werden deshalb auf alle Abschnitte gezogen: Es wäre sinnlos, Abschnitt 1
+   * nach ÖNORM und Abschnitt 2 nach DIN zu rechnen, und der Schriftkopf soll
+   * auf allen Blättern gleich aussehen.
+   */
+  const set: Setzer = (fn) =>
+    setAbschnitte((liste) => {
+      const neuAktiv = fn(liste[aktiv]);
+      const vorher = liste[aktiv];
+      const gemeinsamGeaendert =
+        neuAktiv.bauteil !== vorher.bauteil ||
+        neuAktiv.parameter !== vorher.parameter ||
+        neuAktiv.firmendaten !== vorher.firmendaten;
+
+      // Wechsel auf ein nicht teilbares Bauteil: Abschnitte ergeben dort
+      // keinen Sinn, also bleibt der aktuelle übrig.
+      if (neuAktiv.bauteil !== vorher.bauteil && !teilbar(neuAktiv.bauteil)) {
+        setAktiv(0);
+        return [neuAktiv];
+      }
+
+      return liste.map((p, i) => {
+        if (i === aktiv) return neuAktiv;
+        if (!gemeinsamGeaendert) return p;
+        // Bauteilwechsel: Die anderen Abschnitte haben Maße und Details des
+        // alten Bauteils – die wären für das neue sinnlos. Sie werden beim
+        // Wechsel ohnehin auf einen einzigen Abschnitt zurückgesetzt
+        // (siehe Wirkung unten), hier zählt nur die Gleichheit der Vorgaben.
+        return {
+          ...p,
+          bauteil: neuAktiv.bauteil,
+          parameter: neuAktiv.parameter,
+          firmendaten: neuAktiv.firmendaten,
+        };
+      });
+    });
 
   const modul = bauteilModul(projekt.bauteil);
 
@@ -133,12 +193,51 @@ export default function Wizard() {
     "ergebnis",
   ];
 
+  /**
+   * Weiteren Abschnitt anlegen.
+   *
+   * Der neue übernimmt Höhe, Dicke und die Vorgaben des aktuellen – wer eine
+   * Wand teilt, teilt dieselbe Wand. Was sich je Abschnitt unterscheidet,
+   * sind Länge und Öffnungen; die Länge bleibt als Vorschlag stehen.
+   *
+   * An der neuen Fuge wird beidseits "Wand läuft weiter" gesetzt: Das ist
+   * fachlich das, was eine Teilung bedeutet, und erspart den häufigsten
+   * Fehler – zwei Abschnitte, die sich für freie Wandenden halten und je
+   * eine Randeinfassung bekommen, die es gar nicht gibt.
+   */
+  const abschnittHinzu = () => {
+    if (abschnitte.length >= MAX_ABSCHNITTE) return;
+    const vorlage = abschnitte[abschnitte.length - 1];
+    const neuerAbschnitt: Projekt = {
+      ...vorlage,
+      masse: { ...vorlage.masse },
+      oeffnungen: [],
+      details: { ...vorlage.details, links: "wand_weiter" },
+    };
+    const angepasst = abschnitte.map((p, i) =>
+      i === abschnitte.length - 1 ? { ...p, details: { ...p.details, rechts: "wand_weiter" } } : p
+    );
+    setAbschnitte([...angepasst, neuerAbschnitt]);
+    // In den neuen Abschnitt wechseln und zu seiner Länge springen: Sie ist
+    // das Einzige, was zwingend anders ist. Ohne diesen Sprung sieht es aus,
+    // als wäre beim Klick nichts geschehen.
+    setAktiv(abschnitte.length);
+    setSchritt(schluessel.indexOf("masse"));
+  };
+
+  /** Aktuellen Abschnitt entfernen; der letzte bleibt immer bestehen */
+  const abschnittWeg = () => {
+    if (abschnitte.length <= 1) return;
+    setAbschnitte(abschnitte.filter((_, i) => i !== aktiv));
+    setAktiv(Math.max(0, Math.min(aktiv, abschnitte.length - 2)));
+  };
+
   // Wechselt das Bauteil auf eines ohne Öffnungen, darf der Zeiger nicht
   // hinter das Ende der (nun kürzeren) Schrittfolge zeigen.
-  const aktiv = Math.min(schritt, schluessel.length - 1);
+  const aktiverSchritt = Math.min(schritt, schluessel.length - 1);
 
   // Erreichten Schritt melden – jeder Schritt nur beim ersten Besuch.
-  const schrittName = schluessel[aktiv];
+  const schrittName = schluessel[aktiverSchritt];
   const bauteilId = projekt.bauteil;
   useEffect(() => {
     if (!geladen || gemeldet.current.has(schrittName)) return;
@@ -165,12 +264,69 @@ export default function Wizard() {
     details: <Step4Anschluesse projekt={projekt} set={set} nr={nr("details")} />,
     parameter: <Step5Parameter projekt={projekt} set={set} nr={nr("parameter")} />,
     firmendaten: <Step6Firmendaten projekt={projekt} set={set} nr={nr("firmendaten")} />,
-    ergebnis: <Vorschau projekt={projekt} nr={nr("ergebnis")} />,
+    ergebnis: (
+      <Vorschau
+        abschnitte={abschnitte}
+        aktiv={aktiv}
+        aufAbschnitt={setAktiv}
+        nr={nr("ergebnis")}
+      />
+    ),
   };
 
   return (
     <main className="buehne">
       <section className="panel">
+        {/*
+          Abschnittsleiste – nur bei teilbaren Bauteilen (Wand). Sie steht
+          ÜBER der Schrittleiste, weil sie die übergeordnete Ebene ist: erst
+          welcher Abschnitt, dann welcher Schritt darin.
+        */}
+        {teilbar(projekt.bauteil) && (
+          <div className="abschnitte-leiste">
+            <div className="abschnitte-reiter">
+              {abschnitte.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`abschnitt-reiter${i === aktiv ? " aktiv" : ""}`}
+                  onClick={() => setAktiv(i)}
+                  title={`Abschnitt ${i + 1}: ${p.masse.laenge?.toLocaleString("de-AT")} m`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              {abschnitte.length < MAX_ABSCHNITTE && (
+                <button
+                  type="button"
+                  className="abschnitt-reiter neu"
+                  onClick={abschnittHinzu}
+                  title="Weiteren Abschnitt anlegen"
+                >
+                  + Abschnitt
+                </button>
+              )}
+              {abschnitte.length > 1 && (
+                <button
+                  type="button"
+                  className="abschnitt-weg"
+                  onClick={abschnittWeg}
+                  title={`Abschnitt ${aktiv + 1} entfernen`}
+                >
+                  Abschnitt {aktiv + 1} entfernen
+                </button>
+              )}
+            </div>
+            {abschnitte.length > 1 && (
+              <AbschnittSVG
+                laengen={abschnitte.map((p) => p.masse.laenge ?? 0)}
+                aktiv={aktiv}
+                onWechsel={setAktiv}
+              />
+            )}
+          </div>
+        )}
+
         <ol className="schritte">
           {schluessel.map((k, i) => {
             const fehlerhaft = fehlerSchritte.has(k as SchrittSchluessel);
@@ -178,7 +334,7 @@ export default function Wizard() {
               <li
                 key={k}
                 className={[
-                  i === aktiv ? "aktiv" : i < aktiv ? "erledigt" : "",
+                  i === aktiverSchritt ? "aktiv" : i < aktiverSchritt ? "erledigt" : "",
                   fehlerhaft ? "fehlerhaft" : "",
                 ]
                   .filter(Boolean)
@@ -193,18 +349,18 @@ export default function Wizard() {
           })}
         </ol>
 
-        {inhalt[schluessel[aktiv]]}
+        {inhalt[schluessel[aktiverSchritt]]}
 
         <div className="knopfleiste">
           <button
             className="knopf"
-            onClick={() => setSchritt(Math.max(0, aktiv - 1))}
-            disabled={aktiv === 0}
+            onClick={() => setSchritt(Math.max(0, aktiverSchritt - 1))}
+            disabled={aktiverSchritt === 0}
           >
             ← Zurück
           </button>
-          {aktiv < schluessel.length - 1 && (
-            <button className="knopf primaer" onClick={() => setSchritt(aktiv + 1)}>
+          {aktiverSchritt < schluessel.length - 1 && (
+            <button className="knopf primaer" onClick={() => setSchritt(aktiverSchritt + 1)}>
               Weiter →
             </button>
           )}

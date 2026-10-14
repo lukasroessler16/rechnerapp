@@ -12,6 +12,7 @@ import { nachGruppen } from "../gruppen";
 import { Ergebnis, Projekt } from "../types";
 import { bauteilModul } from "../bauteile";
 import { zeichneAnsichten } from "./ansicht";
+import { zeichneAbschnitte } from "./abschnittsgrafik";
 import { anNorm, regelwerkVon } from "../regelwerk";
 import { GRAU, Zeichner, de, ladeFonts, mm, schriftkopf } from "./helpers";
 
@@ -19,7 +20,13 @@ export async function erzeugeBauplan(
   projekt: Projekt,
   ergebnis: Ergebnis,
   /** Herkunftsvermerk (Code-Stand, Zahlungsreferenz) für den Blattfuß */
-  stempel?: string
+  stempel?: string,
+  /**
+   * Wenn die Wand in Abschnitte geteilt ist: Längen aller Abschnitte und der
+   * Index des hier gezeigten. Auf der Baustelle liegen dann mehrere ähnliche
+   * Pläne nebeneinander – die Grafik sagt in einer halben Sekunde, welcher.
+   */
+  abschnitte?: { laengen: number[]; aktiv: number }
 ): Promise<Uint8Array> {
   const modul = bauteilModul(projekt.bauteil);
   const doc = await PDFDocument.create();
@@ -68,7 +75,12 @@ export async function erzeugeBauplan(
   const par = projekt.parameter;
   const regelwerk = regelwerkVon(par.regelwerk);
   const k = ergebnis.kennwerte;
-  zeile(`Bauteil: ${modul.name}`);
+  zeile(
+    abschnitte && abschnitte.laengen.length > 1
+      ? `Bauteil: ${modul.name}, Abschnitt ${abschnitte.aktiv + 1} von ${abschnitte.laengen.length}`
+      : `Bauteil: ${modul.name}`,
+    true
+  );
   // Die Maßangabe kann lang werden (Stützmauer). Sie wird an den Trennpunkten
   // umbrochen, damit die Teile zusammenbleiben.
   let puffer = "";
@@ -132,6 +144,18 @@ export async function erzeugeBauplan(
   });
   // Herkunftsvermerk: macht ein ausgedrucktes Blatt einer Berechnung zuordenbar
   if (stempel) z.text(stempel, 14, 10.5, 5.5, { farbe: GRAU });
+
+  /* ---------- Abschnittsgrafik ---------- */
+  if (abschnitte && abschnitte.laengen.length > 1) {
+    zeichneAbschnitte(z, {
+      laengen: abschnitte.laengen,
+      aktiv: abschnitte.aktiv,
+      // links neben dem Schriftkopf, auf Höhe des unteren Blattrands
+      x: 14,
+      y: 26,
+      breite: 120,
+    });
+  }
 
   /* ---------- Schriftkopf ---------- */
   await schriftkopf(doc, z, 165, 12, {

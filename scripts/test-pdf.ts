@@ -1,5 +1,6 @@
 /**
- * Erzeugt für jedes Bauteil alle drei PDF-Dokumente zur Sichtprüfung.
+ * Erzeugt für jedes Bauteil alle drei PDF-Dokumente zur Sichtprüfung,
+ * dazu eine Wand in vier Abschnitten samt Gesamt-Stückliste.
  * Aufruf: npx tsx scripts/test-pdf.ts
  * Ergebnis: /tmp/pdf/<bauteil>-{Bauplan,Biegeliste,Stueckliste}.pdf
  */
@@ -9,6 +10,7 @@ import { berechneBewehrung } from "../lib/bewehrung";
 import { erzeugeBauplan } from "../lib/pdf/bauplan";
 import { erzeugeBiegeliste } from "../lib/pdf/biegeliste";
 import { erzeugeStueckliste } from "../lib/pdf/stueckliste";
+import { erzeugeAlle, paketname } from "../lib/dokumente";
 import { bauteilModul, standardDetails } from "../lib/bauteile";
 import { Projekt } from "../lib/types";
 
@@ -113,6 +115,31 @@ const faelle: Projekt[] = [
   },
 ];
 
+/**
+ * Eine Wand in vier Abschnitten – der Fall, den sonst keiner der Einzelfälle
+ * abdeckt: Abschnittsgrafik auf Plan und Stückliste, fortlaufende Nummerierung
+ * in den Kopfzeilen, Gesamt-Stückliste über alle vier.
+ *
+ * Die mittleren Abschnitte laufen beidseitig weiter ("wand_weiter"), der erste
+ * und der letzte haben je ein freies Ende – genau so, wie der Wizard es beim
+ * Anlegen eines Abschnitts setzt.
+ */
+const geteilteWand: Projekt[] = [7.5, 9.0, 6.0, 4.5].map((laenge, i, alle) => ({
+  ...basis,
+  bauteil: "wand",
+  masse: { laenge, hoehe: 2.75, dicke: 0.25 },
+  oeffnungen:
+    i === 1
+      ? [{ id: "1", typ: "fenster", x: 2.0, y: 0.9, breite: 1.5, hoehe: 1.4 }]
+      : [],
+  details: {
+    unten: "bodenplatte",
+    oben: "decke_ueber",
+    links: i === 0 ? "ecke" : "wand_weiter",
+    rechts: i === alle.length - 1 ? "frei" : "wand_weiter",
+  },
+}));
+
 async function main() {
   mkdirSync("/tmp/pdf", { recursive: true });
   for (const projekt of faelle) {
@@ -125,6 +152,18 @@ async function main() {
       `${projekt.bauteil.padEnd(13)} → ${ergebnis.positionen.length} Positionen, ${ergebnis.gesamtgewicht} kg`
     );
   }
-  console.log("PDFs unter /tmp/pdf/");
+
+  /* ---------- Wand in vier Abschnitten ---------- */
+  mkdirSync("/tmp/pdf/abschnitte", { recursive: true });
+  const paket = await erzeugeAlle(geteilteWand, "Testlauf");
+  for (const d of paket) writeFileSync(`/tmp/pdf/abschnitte/${d.name}`, d.daten);
+  const stahl = geteilteWand.reduce((s, p) => s + berechneBewehrung(p).gesamtgewicht, 0);
+  console.log(
+    `\ngeteilte Wand  → ${paket.length} Blätter, ${geteilteWand.length} Abschnitte, ` +
+      `${Math.round(stahl)} kg Stahl, Paket "${paketname(geteilteWand)}"`
+  );
+  for (const d of paket) console.log(`               · ${d.name}`);
+
+  console.log("\nPDFs unter /tmp/pdf/");
 }
 main();
