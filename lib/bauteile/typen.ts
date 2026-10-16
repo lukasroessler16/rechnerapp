@@ -217,6 +217,24 @@ export interface Bauteilmodul {
    */
   teilbar?: boolean;
   /**
+   * Nur bei `teilbar`: was ein Abschnitt NICHT für sich allein hat.
+   *
+   * `gemeinsameMasse` sind Maße, die dem ganzen Bauvorhaben gehören: Eine
+   * Wand mit 2,75 m im ersten und 3,00 m im zweiten Abschnitt ist keine Wand
+   * mehr, sondern zwei – und die Anschlussbewehrung an der Fuge würde nicht
+   * zusammenpassen. Sie werden deshalb beim Ändern auf alle Abschnitte
+   * gezogen, in der Oberfläche wie auch serverseitig.
+   *
+   * `fuge` sagt, welches Detail zum vorigen bzw. zum nächsten Abschnitt
+   * zeigt. Dort ist die Wahl nicht frei: Wo zwei Abschnitte aneinander
+   * betoniert werden, gibt es eine Arbeitsfuge und sonst nichts. Der Kern
+   * setzt `wert` dort fest ein, und die Oberfläche zeigt das Feld gesperrt.
+   */
+  abschnitt?: {
+    gemeinsameMasse: string[];
+    fuge: { vorher: string; nachher: string; wert: string };
+  };
+  /**
    * Wird das Bauteil flächig mit Lagermatten bewehrt? Nur dann sind Lagen,
    * Mattenwahl und das Raster der Anschlussbewehrung sinnvolle Eingaben.
    * Stabbauteile (Stütze, Träger) wählen ihre Bewehrung selbst.

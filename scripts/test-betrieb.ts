@@ -225,7 +225,52 @@ if (gemischt[1].parameter.regelwerk !== gemischt[0].parameter.regelwerk)
 if (gemischt[1].firmendaten.firma !== gemischt[0].firmendaten.firma)
   throw new Error("Alle Abschnitte müssen denselben Schriftkopf tragen.");
 if (gemischt[1].masse.laenge !== 4)
-  throw new Error("Die Maße eines Abschnitts sind sein eigenes – sie dürfen nicht angeglichen werden.");
+  throw new Error("Die Länge eines Abschnitts ist sein eigenes Maß – sie darf nicht angeglichen werden.");
+
+/* ---------- Höhe und Dicke gehören der ganzen Wand ---------- */
+// Eine Wand, die im zweiten Abschnitt höher oder dicker wird, ist keine Wand
+// mehr, und die Anschlusseisen an der Fuge würden nicht zusammenpassen.
+const krumm = validiereBauvorhaben([
+  { ...MUSTERPROJEKT, masse: { ...MUSTERPROJEKT.masse, hoehe: 2.75, dicke: 0.25 } },
+  { ...MUSTERPROJEKT, masse: { ...MUSTERPROJEKT.masse, laenge: 5, hoehe: 3.2, dicke: 0.4 } },
+]);
+if (krumm[1].masse.hoehe !== 2.75 || krumm[1].masse.dicke !== 0.25)
+  throw new Error("Höhe und Dicke müssen in allen Abschnitten die des ersten sein.");
+if (krumm[1].masse.laenge !== 5)
+  throw new Error("Die Länge darf dabei nicht mitgezogen werden.");
+
+/* ---------- An den Fugen läuft die Wand weiter ---------- */
+// Der häufigste Fehler wäre sonst: zwei Abschnitte, die sich beide für ein
+// freies Wandende halten und je eine Randeinfassung bekommen, die es nicht
+// gibt – doppelt bezahlt und auf der Baustelle nicht einbaubar.
+const vierRaender = validiereBauvorhaben(
+  new Array(4).fill(0).map((_, i) => ({
+    ...MUSTERPROJEKT,
+    masse: { ...MUSTERPROJEKT.masse, laenge: 6 + i },
+    details: { ...MUSTERPROJEKT.details, links: "frei", rechts: "frei" },
+  }))
+);
+for (const [i, p] of vierRaender.entries()) {
+  if (i > 0 && p.details.links !== "wand_weiter")
+    throw new Error(`Abschnitt ${i + 1} muss links an den vorigen anschließen.`);
+  if (i < 3 && p.details.rechts !== "wand_weiter")
+    throw new Error(`Abschnitt ${i + 1} muss rechts an den nächsten anschließen.`);
+}
+// Die beiden ECHTEN Wandenden bleiben frei wählbar – dort steht die Wand
+// wirklich an einer Ecke oder endet.
+if (vierRaender[0].details.links !== "frei" || vierRaender[3].details.rechts !== "frei")
+  throw new Error("Die äußeren Enden dürfen nicht überschrieben werden.");
+// Bei einem einzigen Abschnitt gibt es keine Fuge.
+if (
+  validiereBauvorhaben([
+    { ...MUSTERPROJEKT, details: { ...MUSTERPROJEKT.details, links: "frei", rechts: "frei" } },
+  ])[0].details.rechts !== "frei"
+)
+  throw new Error("Ohne zweiten Abschnitt darf nichts gesperrt werden.");
+console.log(
+  "Höhe und Dicke gelten für alle Abschnitte, an den Fugen läuft die Wand weiter, " +
+    "die echten Wandenden bleiben frei"
+);
 
 // Die Zahl der Abschnitte bestimmt den Preis. Sie wird deshalb serverseitig
 // begrenzt, nicht nur in der Oberfläche.

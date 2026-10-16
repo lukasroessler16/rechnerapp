@@ -52,6 +52,13 @@ export const wand: Bauteilmodul = {
   hatOeffnungen: true,
   // Lange Wände werden in Betonierabschnitte geteilt – siehe lib/abschnitte.ts
   teilbar: true,
+  abschnitt: {
+    // Höhe und Dicke gehören der ganzen Wand, nicht dem einzelnen Abschnitt.
+    gemeinsameMasse: ["hoehe", "dicke"],
+    // An der Fuge zwischen zwei Abschnitten läuft die Wand weiter – das ist
+    // keine Wahl, sondern das, was eine Teilung bedeutet.
+    fuge: { vorher: "links", nachher: "rechts", wert: "wand_weiter" },
+  },
   flaechenbewehrt: true,
   oeffnungsTypen: ["fenster", "tuer", "aussparung"],
   detailTitel: "Anschlussdetails",

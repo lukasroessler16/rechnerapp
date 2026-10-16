@@ -19,6 +19,7 @@ import {
   standardMasse,
 } from "@/lib/bauteile";
 import { Massfeld, feldFaktor } from "@/lib/bauteile/typen";
+import { gemeinsameMasse, gesperrteDetails } from "@/lib/abschnitte";
 import { BETONKLASSEN, LAGERMATTEN, MATTEN_STOESSE } from "@/lib/normdaten";
 import { REGELWERKE, cnomAusExposition, regelwerkVon } from "@/lib/regelwerk";
 import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
@@ -32,6 +33,12 @@ interface StepProps {
   set: Setzer;
   /** Nummer in der (bauteilabhängigen) Schrittfolge, 1-basiert */
   nr: number;
+  /**
+   * Stellung des bearbeiteten Abschnitts im Bauvorhaben, sofern die Wand
+   * geteilt ist. Fehlt sie, gibt es nur einen Abschnitt und die Schritte
+   * verhalten sich unverändert.
+   */
+  lage?: { nr: number; von: number };
 }
 
 /* ------------------------------------------------------------------ */
@@ -128,16 +135,22 @@ function MassFeld({
   projekt,
   set,
   fehler,
+  /** Maß gilt für alle Abschnitte – wird am Feld angeschrieben */
+  fuerAlle,
 }: {
   feld: Massfeld;
   projekt: Projekt;
   set: Setzer;
   fehler?: string;
+  fuerAlle?: boolean;
 }) {
   const faktor = feldFaktor(feld);
   const roh = projekt.masse[feld.schluessel] ?? feld.standard;
   // Rundung vermeidet Anzeigefehler wie 24,999999 cm
   const anzeige = Math.round(roh * faktor * 1000) / 1000;
+  const hinweis = fuerAlle
+    ? [feld.hinweis, "gilt für alle Abschnitte"].filter(Boolean).join(" · ")
+    : feld.hinweis;
   return (
     <ZahlFeld
       label={feld.label}
@@ -146,7 +159,7 @@ function MassFeld({
       min={feld.min * faktor}
       max={feld.max * faktor}
       schritt={feld.schritt ?? (faktor === 100 ? 1 : 0.01)}
-      hinweis={feld.hinweis}
+      hinweis={hinweis}
       fehler={fehler}
       onChange={(v) =>
         set((p) => ({ ...p, masse: { ...p.masse, [feld.schluessel]: v / faktor } }))
@@ -257,12 +270,24 @@ export function Step1Bauteil({ projekt, set, nr }: StepProps) {
 /* Schritt 2: Grundmaße                                                */
 /* ------------------------------------------------------------------ */
 
-export function Step2Masse({ projekt, set, nr }: StepProps) {
+export function Step2Masse({ projekt, set, nr, lage }: StepProps) {
   const modul = bauteilModul(projekt.bauteil);
   const meldungen = useMemo(() => pruefeProjekt(projekt), [projekt]);
+  // Maße, die der ganzen Wand gehören und nicht dem einzelnen Abschnitt
+  const gemeinsam = lage ? gemeinsameMasse(projekt.bauteil) : [];
+  const gemeinsameNamen = modul.masse
+    .filter((f) => gemeinsam.includes(f.schluessel))
+    .map((f) => f.label);
   return (
     <>
-      <h2 className="schritt-titel">{nr} · Grundmaße</h2>
+      <h2 className="schritt-titel">
+        {nr} · Grundmaße
+        {lage && (
+          <span className="titel-zusatz">
+            Abschnitt {lage.nr} von {lage.von}
+          </span>
+        )}
+      </h2>
       <p className="schritt-hilfe">
         {/*
           Nicht „die Skizze rechts": Am Handy steht sie unter dem Formular,
@@ -270,6 +295,18 @@ export function Step2Masse({ projekt, set, nr }: StepProps) {
         */}
         Maße für {modul.name}. Die Skizze aktualisiert sich live mit.
       </p>
+      {/*
+        Der Hinweis steht ÜBER den Feldern, nicht darunter: Er soll gelesen
+        werden, bevor jemand in Abschnitt 3 eine andere Dicke einträgt und
+        sich wundert, dass sie überall steht.
+      */}
+      {gemeinsameNamen.length > 0 && (
+        <div className="hinweisbox">
+          {gemeinsameNamen.join(" und ")} gelten für alle {lage!.von} Abschnitte –
+          eine Änderung hier gilt für die ganze Wand. Unterschiedlich sind nur die
+          Länge und die Öffnungen.
+        </div>
+      )}
       {/* Bei vier Maßfeldern wirkt ein 2×2-Raster ruhiger als 3 + 1 */}
       <div className={modul.masse.length === 4 ? "reihe" : "reihe3"}>
         {modul.masse.map((f) => (
@@ -279,6 +316,7 @@ export function Step2Masse({ projekt, set, nr }: StepProps) {
             projekt={projekt}
             set={set}
             fehler={fehlerZu(meldungen, f.schluessel)}
+            fuerAlle={gemeinsam.includes(f.schluessel)}
           />
         ))}
       </div>
@@ -436,45 +474,81 @@ function DetailWahl({
   wert,
   optionen,
   onChange,
+  /**
+   * Begründung, warum hier nichts zu wählen ist. Gesetzt bei den Rändern,
+   * an denen ein Nachbarabschnitt anschließt: Dort gibt es eine Arbeitsfuge
+   * und sonst nichts. Das Feld bleibt sichtbar (der Kunde soll sehen, was
+   * dort geplant wird), aber gesperrt.
+   */
+  gesperrt,
 }: {
   label: string;
   wert: string;
   optionen: { wert: string; titel: string; bildId: string }[];
   onChange: (v: string) => void;
+  gesperrt?: string;
 }) {
   const aktiv = optionen.find((o) => o.wert === wert) ?? optionen[0];
   return (
-    <div className="detail-wahl">
+    <div className={`detail-wahl${gesperrt ? " gesperrt" : ""}`}>
       <div className="bild">
         <Detailbild bildId={aktiv.bildId} />
       </div>
       <div className="wahl feld" style={{ marginBottom: 0 }}>
         <label>{label}</label>
-        <select value={wert} onChange={(e) => onChange(e.target.value)}>
+        <select
+          value={wert}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={!!gesperrt}
+          title={gesperrt}
+        >
           {optionen.map((o) => (
             <option key={o.wert} value={o.wert}>
               {o.titel}
             </option>
           ))}
         </select>
+        {gesperrt && <div className="hinweis gesperrt-grund">{gesperrt}</div>}
       </div>
     </div>
   );
 }
 
-export function Step4Anschluesse({ projekt, set, nr }: StepProps) {
+export function Step4Anschluesse({ projekt, set, nr, lage }: StepProps) {
   const modul = bauteilModul(projekt.bauteil);
   const meldungen = useMemo(() => pruefeProjekt(projekt), [projekt]);
+  /*
+   * An den Rändern, wo der nächste oder vorige Abschnitt anschließt, gibt es
+   * nichts zu wählen: Dort wird weiterbetoniert. Die Felder bleiben trotzdem
+   * stehen – wer den Plan später liest, soll auf dem Bildschirm dasselbe
+   * gesehen haben, was auf dem Blatt steht.
+   */
+  const fest = lage ? gesperrteDetails(projekt.bauteil, lage.nr - 1, lage.von) : {};
+  const grund = (schluessel: string): string | undefined => {
+    if (!(schluessel in fest) || !lage) return undefined;
+    const regel = modul.abschnitt?.fuge;
+    const nachbar = regel && schluessel === regel.vorher ? lage.nr - 1 : lage.nr + 1;
+    return `Hier schließt Abschnitt ${nachbar} an – die Wand läuft weiter (Arbeitsfuge).`;
+  };
+
   return (
     <>
-      <h2 className="schritt-titel">{nr} · {modul.detailTitel}</h2>
+      <h2 className="schritt-titel">
+        {nr} · {modul.detailTitel}
+        {lage && (
+          <span className="titel-zusatz">
+            Abschnitt {lage.nr} von {lage.von}
+          </span>
+        )}
+      </h2>
       <p className="schritt-hilfe">{modul.detailHilfe}</p>
       {modul.details.map((f) => (
         <DetailWahl
           key={f.schluessel}
           label={f.label}
-          wert={projekt.details[f.schluessel] ?? f.standard}
+          wert={fest[f.schluessel] ?? projekt.details[f.schluessel] ?? f.standard}
           optionen={f.optionen}
+          gesperrt={grund(f.schluessel)}
           onChange={(v) =>
             set((p) => ({ ...p, details: { ...p.details, [f.schluessel]: v } }))
           }

@@ -15,7 +15,13 @@ import { bauteilModul } from "@/lib/bauteile";
 import { neuesProjekt, normalisiereProjekt } from "@/lib/standardwerte";
 import { pruefeProjekt, schrittZuMeldung } from "@/lib/validierung";
 import { ereignis } from "@/lib/statistik";
-import { MAX_ABSCHNITTE, teilbar } from "@/lib/abschnitte";
+import {
+  MAX_ABSCHNITTE,
+  gemeinsameMasse,
+  gesperrteDetails,
+  teilbar,
+  vereinheitliche,
+} from "@/lib/abschnitte";
 import SkizzeSVG from "./SkizzeSVG";
 import AbschnittSVG from "./AbschnittSVG";
 import {
@@ -95,8 +101,11 @@ export default function Wizard() {
         // einzelnes Projekt gespeichert, neuere eine Liste von Abschnitten.
         const gelesen = JSON.parse(roh);
         const liste = (Array.isArray(gelesen) ? gelesen : [gelesen]).map(normalisiereProjekt);
+        // vereinheitliche(): Ein Zustand aus einer älteren Programmversion
+        // kann je Abschnitt abweichende Höhen oder freie Ränder an den Fugen
+        // enthalten. Hier gelten dieselben Regeln wie serverseitig.
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setAbschnitte(liste.length ? liste : [neuesProjekt()]);
+        setAbschnitte(liste.length ? vereinheitliche(liste) : [neuesProjekt()]);
       } else {
         // Neuer Aufruf: Firmendaten und Logo aus einem früheren Durchlauf
         // übernehmen – Baumeister rechnen meist mehrere Bauteile nacheinander
@@ -142,11 +151,16 @@ export default function Wizard() {
   /**
    * Eingaben übernehmen.
    *
-   * Maße, Öffnungen und Anschlüsse gehören dem Abschnitt. Bauteil,
-   * bautechnische Parameter und Firmendaten gehören dem Bauvorhaben und
-   * werden deshalb auf alle Abschnitte gezogen: Es wäre sinnlos, Abschnitt 1
-   * nach ÖNORM und Abschnitt 2 nach DIN zu rechnen, und der Schriftkopf soll
-   * auf allen Blättern gleich aussehen.
+   * Länge, Öffnungen und die äußeren Anschlüsse gehören dem Abschnitt.
+   * Bauteil, bautechnische Parameter und Firmendaten gehören dem
+   * Bauvorhaben und werden deshalb auf alle Abschnitte gezogen: Es wäre
+   * sinnlos, Abschnitt 1 nach ÖNORM und Abschnitt 2 nach DIN zu rechnen, und
+   * der Schriftkopf soll auf allen Blättern gleich aussehen.
+   *
+   * Dasselbe gilt für Höhe und Dicke (`gemeinsameMasse` des Bauteilmoduls)
+   * und für die Anschlüsse an den Fugen – nach denselben Regeln, die auch
+   * der Server beim Checkout anwendet. So kann die Oberfläche gar nicht erst
+   * einen Zustand erzeugen, den der Server anschließend korrigiert.
    */
   const set: Setzer = (fn) =>
     setAbschnitte((liste) => {
@@ -164,7 +178,7 @@ export default function Wizard() {
         return [neuAktiv];
       }
 
-      return liste.map((p, i) => {
+      const neu = liste.map((p, i) => {
         if (i === aktiv) return neuAktiv;
         if (!gemeinsamGeaendert) return p;
         // Bauteilwechsel: Die anderen Abschnitte haben Maße und Details des
@@ -178,9 +192,35 @@ export default function Wizard() {
           firmendaten: neuAktiv.firmendaten,
         };
       });
+
+      if (neu.length < 2) return neu;
+      // Der BEARBEITETE Abschnitt gibt die gemeinsamen Maße vor, auch wenn es
+      // nicht der erste ist: Wer in Abschnitt 3 die Dicke ändert, meint die
+      // Wand und nicht den Abschnitt. (vereinheitliche() nimmt dafür den
+      // ersten – dort ist es der Server, der keine Bearbeitung kennt.)
+      const gemeinsam = gemeinsameMasse(neuAktiv.bauteil);
+      return neu.map((p, i) => {
+        const masse = i === aktiv ? p.masse : { ...p.masse };
+        if (i !== aktiv) for (const k of gemeinsam) masse[k] = neuAktiv.masse[k];
+        const fest = gesperrteDetails(p.bauteil, i, neu.length);
+        return { ...p, masse, details: { ...p.details, ...fest } };
+      });
     });
 
   const modul = bauteilModul(projekt.bauteil);
+
+  /**
+   * Die Anschlüsse an den Fugen festsetzen.
+   *
+   * Wird nach jeder strukturellen Änderung angewendet, weil sich dabei die
+   * Indizes verschieben: Entfernt man Abschnitt 2 von 3, liegt der bisher
+   * mittlere Rand plötzlich außen.
+   */
+  const mitFugen = (liste: Projekt[]): Projekt[] =>
+    liste.map((p, i) => ({
+      ...p,
+      details: { ...p.details, ...gesperrteDetails(p.bauteil, i, liste.length) },
+    }));
 
   // Schrittfolge des aktuellen Bauteils
   const schluessel: SchrittSchluessel[] = [
@@ -212,12 +252,9 @@ export default function Wizard() {
       ...vorlage,
       masse: { ...vorlage.masse },
       oeffnungen: [],
-      details: { ...vorlage.details, links: "wand_weiter" },
+      details: { ...vorlage.details },
     };
-    const angepasst = abschnitte.map((p, i) =>
-      i === abschnitte.length - 1 ? { ...p, details: { ...p.details, rechts: "wand_weiter" } } : p
-    );
-    setAbschnitte([...angepasst, neuerAbschnitt]);
+    setAbschnitte(mitFugen([...abschnitte, neuerAbschnitt]));
     // In den neuen Abschnitt wechseln und zu seiner Länge springen: Sie ist
     // das Einzige, was zwingend anders ist. Ohne diesen Sprung sieht es aus,
     // als wäre beim Klick nichts geschehen.
@@ -228,7 +265,9 @@ export default function Wizard() {
   /** Aktuellen Abschnitt entfernen; der letzte bleibt immer bestehen */
   const abschnittWeg = () => {
     if (abschnitte.length <= 1) return;
-    setAbschnitte(abschnitte.filter((_, i) => i !== aktiv));
+    // Nach dem Entfernen verschieben sich die Fugen: Aus dem bisherigen
+    // Abschnitt 3 wird 2, und was innen lag, kann nun außen liegen.
+    setAbschnitte(mitFugen(abschnitte.filter((_, i) => i !== aktiv)));
     setAktiv(Math.max(0, Math.min(aktiv, abschnitte.length - 2)));
   };
 
@@ -257,11 +296,20 @@ export default function Wizard() {
   // Öffnungsschritt in der Folge enthalten ist
   const nr = (k: SchrittSchluessel) => schluessel.indexOf(k) + 1;
 
+  /**
+   * Wo im Bauvorhaben steht der gerade bearbeitete Abschnitt? Die
+   * Eingabeschritte brauchen das, um gemeinsame Maße zu kennzeichnen und die
+   * Anschlüsse an den Fugen zu sperren. Bei nur einem Abschnitt: undefined –
+   * dann ändert sich an den Schritten gar nichts.
+   */
+  const lage =
+    abschnitte.length > 1 ? { nr: aktiv + 1, von: abschnitte.length } : undefined;
+
   const inhalt: Record<SchrittSchluessel, React.ReactNode> = {
     bauteil: <Step1Bauteil projekt={projekt} set={set} nr={nr("bauteil")} />,
-    masse: <Step2Masse projekt={projekt} set={set} nr={nr("masse")} />,
+    masse: <Step2Masse projekt={projekt} set={set} nr={nr("masse")} lage={lage} />,
     oeffnungen: <Step3Oeffnungen projekt={projekt} set={set} nr={nr("oeffnungen")} />,
-    details: <Step4Anschluesse projekt={projekt} set={set} nr={nr("details")} />,
+    details: <Step4Anschluesse projekt={projekt} set={set} nr={nr("details")} lage={lage} />,
     parameter: <Step5Parameter projekt={projekt} set={set} nr={nr("parameter")} />,
     firmendaten: <Step6Firmendaten projekt={projekt} set={set} nr={nr("firmendaten")} />,
     ergebnis: (

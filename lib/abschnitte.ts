@@ -35,6 +35,32 @@ export function teilbar(bauteilId: string): boolean {
   return bauteilModul(bauteilId).teilbar === true;
 }
 
+/** Maße, die allen Abschnitten gemeinsam sind (bei der Wand: Höhe und Dicke) */
+export function gemeinsameMasse(bauteilId: string): string[] {
+  return bauteilModul(bauteilId).abschnitt?.gemeinsameMasse ?? [];
+}
+
+/**
+ * Welche Detailfelder sind in diesem Abschnitt festgelegt, weil dort ein
+ * Nachbarabschnitt anschließt?
+ *
+ * Der erste Abschnitt hat links ein echtes Wandende, der letzte rechts –
+ * dort bleibt die Wahl frei. Dazwischen ist jede Seite eine Arbeitsfuge.
+ * Bei genau einem Abschnitt ist nichts gesperrt.
+ */
+export function gesperrteDetails(
+  bauteilId: string,
+  index: number,
+  anzahl: number
+): Record<string, string> {
+  const regel = bauteilModul(bauteilId).abschnitt?.fuge;
+  if (!regel || anzahl < 2) return {};
+  const fest: Record<string, string> = {};
+  if (index > 0) fest[regel.vorher] = regel.wert;
+  if (index < anzahl - 1) fest[regel.nachher] = regel.wert;
+  return fest;
+}
+
 /**
  * Bezeichnung eines Abschnitts für Pläne, Listen und Dateinamen.
  * Bei nur einem Abschnitt bleibt sie leer – dann gibt es nichts zu benennen.
@@ -55,16 +81,35 @@ export function abschnittKurz(nr: number, von: number): string {
 export function vereinheitliche(bv: Bauvorhaben): Bauvorhaben {
   if (bv.length === 0) return bv;
   const erster = bv[0];
-  return bv.map((p, i) =>
-    i === 0
-      ? p
-      : {
-          ...p,
-          bauteil: erster.bauteil,
-          parameter: { ...erster.parameter },
-          firmendaten: { ...erster.firmendaten },
-        }
-  );
+  const gemeinsam = gemeinsameMasse(erster.bauteil);
+
+  return bv.map((p, i) => {
+    const angepasst: Projekt =
+      i === 0
+        ? { ...p, masse: { ...p.masse }, details: { ...p.details } }
+        : {
+            ...p,
+            bauteil: erster.bauteil,
+            parameter: { ...erster.parameter },
+            firmendaten: { ...erster.firmendaten },
+            masse: { ...p.masse },
+            details: { ...p.details },
+          };
+
+    // Höhe und Dicke aus dem ersten Abschnitt – eine Wand, die in der Mitte
+    // dicker wird, wäre keine Wand mehr, und die Anschlusseisen an der Fuge
+    // würden nicht zusammenpassen.
+    for (const schluessel of gemeinsam)
+      angepasst.masse[schluessel] = erster.masse[schluessel];
+
+    // An jeder Fuge läuft die Wand weiter.
+    for (const [schluessel, wert] of Object.entries(
+      gesperrteDetails(erster.bauteil, i, bv.length)
+    ))
+      angepasst.details[schluessel] = wert;
+
+    return angepasst;
+  });
 }
 
 /**

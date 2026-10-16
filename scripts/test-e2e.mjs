@@ -83,6 +83,19 @@ const zwei = JSON.parse(
 if (zwei.length !== 2) throw new Error("Der zweite Abschnitt wurde nicht gespeichert.");
 if (zwei[1].details.links !== "wand_weiter" || zwei[0].details.rechts !== "wand_weiter")
   throw new Error("An der neuen Fuge muss beidseits 'Wand läuft weiter' stehen.");
+if (zwei[1].masse.hoehe !== zwei[0].masse.hoehe || zwei[1].masse.dicke !== zwei[0].masse.dicke)
+  throw new Error("Höhe und Dicke müssen in allen Abschnitten gleich sein.");
+
+// Die Fuge ist auch in der Oberfläche nicht wählbar
+await seite.click("text=4 Anschlüsse");
+await seite.waitForSelector("text=Anschluss unten");
+const festeRaender = await seite.locator(".detail-wahl.gesperrt select[disabled]").count();
+if (festeRaender !== 1)
+  throw new Error(
+    `Im letzten Abschnitt muss genau der linke Anschluss gesperrt sein, gesperrt: ${festeRaender}`
+  );
+await seite.click("text=7 Ergebnis");
+await seite.waitForSelector("text=Das ganze Bauvorhaben");
 
 const planZwei = await seite.request.post(BASIS + "/api/dokumente", {
   data: { plan: true, demo: true, projekt: zwei },
@@ -114,7 +127,19 @@ await seite.check(".zustimmung input");
 
 // --- Weiter durch den Demo-Checkout ---
 await knopf.click();
-await seite.waitForURL("**/erfolg?demo=1");
+try {
+  await seite.waitForURL("**/erfolg?demo=1");
+} catch {
+  // Häufigster Grund: In .env.local steht ein STRIPE_SECRET_KEY, dann geht
+  // der Checkout zu Stripe statt in den Demo-Modus. Ohne diesen Hinweis
+  // steht hier nur ein nichtssagender Timeout.
+  throw new Error(
+    "Der Checkout ist nicht auf der Demo-Erfolgsseite gelandet (aktuell: " +
+      seite.url() +
+      "). Läuft der Server mit gesetztem STRIPE_SECRET_KEY? Für diesen Test " +
+      "starten mit: STRIPE_SECRET_KEY= DEMO_MODUS=1 npm run dev"
+  );
+}
 await seite.waitForSelector("text=Demo-Modus");
 
 // Die Erfolgsseite lädt das Paket von selbst – wer bezahlt und den Tab
