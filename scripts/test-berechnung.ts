@@ -770,7 +770,34 @@ for (const modul of BAUTEILE) {
   if (nummern.some((n, i) => n !== i + 1))
     throw new Error(`${modul.id}: Positionsnummern laufen nicht gruppenweise durch.`);
 
-  console.log(`${modul.id.padEnd(18)} ${gruppen.map((g) => g.name).join(" · ")}`);
+  /*
+   * Gegliederte Nummern: Gruppe 2 heißt 2, ihre Positionen 2.1, 2.2 …
+   * Diese Nummern stehen auf Plan, Stückliste und Biegeliste. Weichen sie
+   * voneinander ab, bestellt jemand nach der einen und verlegt nach der
+   * anderen – deshalb wird hier geprüft, dass sie aus einer Quelle kommen
+   * und lückenlos sind.
+   */
+  gruppen.forEach((g, i) => {
+    if (g.nummer !== i + 1)
+      throw new Error(`${modul.id}: Gruppe "${g.name}" müsste die Nummer ${i + 1} tragen.`);
+    g.positionen.forEach((p, j) => {
+      const erwartet = `${i + 1}.${j + 1}`;
+      if (p.nr !== erwartet)
+        throw new Error(
+          `${modul.id}: Position in "${g.name}" heißt ${p.nr}, erwartet ${erwartet}.`
+        );
+      if (p.gruppeNr !== g.nummer)
+        throw new Error(`${modul.id}: Position ${p.nr} zeigt auf die falsche Gruppe.`);
+    });
+  });
+  // Keine Nummer darf doppelt vorkommen – sie ist der Schlüssel beim Abhaken.
+  const gegliedert = gruppen.flatMap((g) => g.positionen.map((p) => p.nr));
+  if (new Set(gegliedert).size !== gegliedert.length)
+    throw new Error(`${modul.id}: Gegliederte Positionsnummern sind nicht eindeutig.`);
+
+  console.log(
+    `${modul.id.padEnd(18)} ${gruppen.map((g) => `${g.nummer} ${g.name}`).join(" · ")}`
+  );
 }
 
 // Die Wand mit Öffnungen bekommt je Öffnung eine eigene Gruppe

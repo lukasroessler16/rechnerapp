@@ -26,7 +26,7 @@ export const cm = (m: number) => Math.round(m * 100) / 100;
 export const STANDARD_GRUPPE = "Grundbewehrung";
 
 export class Sammler {
-  positionen: Omit<Position, "pos">[] = [];
+  positionen: Omit<Position, "pos" | "gruppeNr" | "nr">[] = [];
 
   /** aktuell gesetzte Gruppe */
   private aktuell = STANDARD_GRUPPE;
@@ -82,7 +82,7 @@ export class Sammler {
     // Gleiche Stäbe werden nur innerhalb derselben Gruppe zusammengefasst –
     // sonst verschwänden die Anschlusseisen links in der Position der
     // Anschlusseisen oben, und die Zwischensummen wären falsch.
-    const key = (p: Omit<Position, "pos">) =>
+    const key = (p: Omit<Position, "pos" | "gruppeNr" | "nr">) =>
       p.gruppe === this.aktuell &&
       p.art === "stab" &&
       p.durchmesser === d &&
@@ -125,9 +125,20 @@ export class Sammler {
   /**
    * Nummerierte Positionsliste: nach Gruppen in der Reihenfolge ihres
    * Auftretens, innerhalb einer Gruppe erst Matten, dann Stäbe nach
-   * Durchmesser. Die Nummerierung läuft über alle Gruppen durch – der
-   * Baustahlhändler bekommt eine Liste mit eindeutigen Positionsnummern,
-   * die Gruppen sind die Zwischenüberschriften darüber.
+   * Durchmesser.
+   *
+   * Jede Position bekommt zwei Nummern:
+   *   `nr`  gegliedert, "2.3" = dritter Posten der zweiten Gruppe. Das ist
+   *         die Nummer, die auf Plan und Listen steht – sie sagt beim
+   *         Abhaken sofort, wozu ein Stab gehört und ob von einer Gruppe
+   *         noch etwas fehlt.
+   *   `pos` durchlaufend über alle Gruppen, für Händler und Nachfragen.
+   *
+   * Hier und nur hier wird nummeriert: Bauplan, Stückliste, Biegeliste und
+   * die Bildschirmvorschau zeigen dieselbe Nummer, weil sie alle diese eine
+   * Liste anzeigen. Eine zweite Nummerierung in der Ausgabe würde früher
+   * oder später von dieser abweichen – und dann bestellt jemand nach der
+   * einen Nummer und verlegt nach der anderen.
    */
   fertig(): Position[] {
     const rang = (g: string) => {
@@ -140,6 +151,17 @@ export class Sammler {
       if (a.art !== b.art) return a.art === "matte" ? -1 : 1;
       return (a.durchmesser ?? 0) - (b.durchmesser ?? 0);
     });
-    return sortiert.map((p, i) => ({ ...p, pos: i + 1 }));
+
+    // Gruppen durchzählen, sobald sie zum ersten Mal auftauchen; innerhalb
+    // einer Gruppe von vorn.
+    const gruppenNr = new Map<string, number>();
+    const laufend = new Map<string, number>();
+    return sortiert.map((p, i) => {
+      if (!gruppenNr.has(p.gruppe)) gruppenNr.set(p.gruppe, gruppenNr.size + 1);
+      const g = gruppenNr.get(p.gruppe)!;
+      const inGruppe = (laufend.get(p.gruppe) ?? 0) + 1;
+      laufend.set(p.gruppe, inGruppe);
+      return { ...p, pos: i + 1, gruppeNr: g, nr: `${g}.${inGruppe}` };
+    });
   }
 }

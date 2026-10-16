@@ -113,14 +113,21 @@ export async function erzeugeBauplan(
   // Stückliste, damit Plan und Liste nebeneinander lesbar sind.
   zeile("Aufteilung:", true);
   for (const g of nachGruppen(ergebnis.positionen)) {
-    z.text(`${g.name}`, ix + 1, iy, 6.5, { farbe: GRAU });
+    // Die Nummer vorne ist der gemeinsame Teil der Positionsnummern dieser
+    // Gruppe: Unter "2 Anschluss oben" stehen in der Stückliste 2.1, 2.2 …
+    // So lässt sich vom Plan aus nachschlagen, ohne zu suchen.
+    z.text(`${g.nummer} ${g.name}`, ix + 1, iy, 6.5, { farbe: GRAU });
     z.text(`${de(g.gewicht, 1)} kg`, 285.5, iy, 6.5, {
       ausrichtung: "rechts",
       farbe: GRAU,
     });
     iy -= 3.6;
   }
-  iy -= 3;
+  iy -= 1;
+  // Kurz halten: Die Spalte ist 40 mm breit, ein längerer Satz liefe über
+  // den Planrahmen hinaus.
+  z.text("Pos. je Gruppe: 1.1, 1.2 …", ix + 1, iy, 5.5, { farbe: GRAU });
+  iy -= 5;
   // Betonmenge: Wer die Bewehrung bestellt, bestellt den Beton gleich mit.
   zeile(`Beton netto: ${de(ergebnis.beton.volumen)} m³`, true);
   zeile(`Bestellmenge: ${de(ergebnis.beton.bestellmenge)} m³`);

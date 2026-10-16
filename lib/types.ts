@@ -140,6 +140,19 @@ export interface Position {
    * nicht in Positionsnummern.
    */
   gruppe: string;
+  /** Nummer der Gruppe, 1-basiert: "Anschluss oben" ist die 2 */
+  gruppeNr: number;
+  /**
+   * Positionsnummer in der Form "2.3": dritte Position der zweiten Gruppe.
+   *
+   * WOZU: Auf dem Plan steht an der Bewehrung die Marke, in der Liste die
+   * Nummer. Eine durchlaufende Nummer sagt nichts darüber, wozu ein Stab
+   * gehört; „2.3" sagt beim Abhaken sofort, dass es der dritte Posten des
+   * Anschlusses oben ist – und ob von dieser Gruppe noch etwas fehlt. Die
+   * durchlaufende `pos` bleibt daneben bestehen, weil Baustahlhändler
+   * eindeutige, vergleichbare Nummern erwarten.
+   */
+  nr: string;
   /** Art: Lagermatte oder Stabstahl */
   art: "matte" | "stab";
   /** Bezeichnung, z. B. "Q257A" oder "Ø12" */

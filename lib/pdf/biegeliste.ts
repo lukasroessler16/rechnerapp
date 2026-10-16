@@ -101,7 +101,7 @@ export async function erzeugeBiegeliste(
   /* ---------- Stabstahl-Zeilen ---------- */
   for (const p of staebe) {
     if (y < ENDE_Y + ZEILE_H) await neueSeite();
-    z.text(String(p.pos), spalten[0].x + 1, y - 6, 8, { fett: true });
+    z.text(p.nr, spalten[0].x + 1, y - 6, 8, { fett: true });
     z.text(String(p.durchmesser), spalten[1].x + 1, y - 6, 8);
     formSkizze(z, p, spalten[2].x + 1, y - ZEILE_H + 3, spalten[2].b - 2, ZEILE_H - 5);
     z.text(FORM_NAME[p.form ?? "gerade"], spalten[3].x + 1, y - 6, 7);
@@ -122,7 +122,7 @@ export async function erzeugeBiegeliste(
     z.text("LAGERMATTEN (Zuschnitt auf der Baustelle)", 15, y, 8.5, { fett: true });
     y -= 7;
     for (const p of matten) {
-      z.text(String(p.pos), 16, y - 4, 8, { fett: true });
+      z.text(p.nr, 16, y - 4, 8, { fett: true });
       formSkizze(z, p, 27, y - ZEILE_H + 4, 30, ZEILE_H - 6);
       z.text(
         `${p.bezeichnung} · ${de(p.laenge)} × ${de(p.breite ?? 0)} m · ${p.stueck} Stk. · ${de(p.gewichtGesamt, 1)} kg`,

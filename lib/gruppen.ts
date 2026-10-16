@@ -10,6 +10,13 @@
 import { Position } from "./types";
 
 export interface Positionsgruppe {
+  /**
+   * Nummer der Gruppe, 1-basiert. Die Positionen darin heißen "2.1", "2.2" …
+   * Vergeben wird sie beim Zusammenstellen der Positionen
+   * (lib/bauteile/sammler.ts, `fertig()`) – hier wird sie nur übernommen,
+   * damit Überschrift und Positionsnummern nicht auseinanderlaufen können.
+   */
+  nummer: number;
   /** Überschrift, z. B. "Anschluss oben" */
   name: string;
   positionen: Position[];
@@ -30,7 +37,7 @@ export function nachGruppen(positionen: Position[]): Positionsgruppe[] {
   for (const p of positionen) {
     let g = gruppen.find((x) => x.name === p.gruppe);
     if (!g) {
-      g = { name: p.gruppe, positionen: [], gewicht: 0, anteil: 0 };
+      g = { nummer: p.gruppeNr, name: p.gruppe, positionen: [], gewicht: 0, anteil: 0 };
       gruppen.push(g);
     }
     g.positionen.push(p);

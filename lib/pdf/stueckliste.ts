@@ -116,7 +116,11 @@ export async function erzeugeStueckliste(
     // Eine Überschrift darf nicht allein am Seitenfuß stehen; es muss
     // mindestens eine Positionszeile darunter passen.
     if (y < ENDE_Y + ZEILE_H + 10) await neueSeite();
-    z.text(gruppe.name.toUpperCase(), 15, y - 4, 8, { fett: true });
+    // Nummer vor der Überschrift: Die Positionen darunter heißen "2.1",
+    // "2.2" – die Gruppennummer ist der gemeinsame Teil davon.
+    z.text(`${gruppe.nummer} · ${gruppe.name.toUpperCase()}`, 15, y - 4, 8, {
+      fett: true,
+    });
     z.text(`${de(gruppe.gewicht, 1)} kg · ${gruppe.anteil} %`, 195, y - 4, 8, {
       ausrichtung: "rechts",
       farbe: GRAU,
@@ -136,7 +140,7 @@ export async function erzeugeStueckliste(
           : p.segmente && p.segmente.length > 1
             ? p.segmente.map((s) => de(s)).join(" / ")
             : `L = ${de(p.laenge)}`;
-      z.text(String(p.pos), spalten[0].x + 1, y - 5.5, 8, { fett: true });
+      z.text(p.nr, spalten[0].x + 1, y - 5.5, 8, { fett: true });
       z.text(bez, spalten[1].x + 1, y - 5.5, 7.5);
       formSkizze(
         z,

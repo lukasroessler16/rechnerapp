@@ -317,13 +317,15 @@ export default function Vorschau({
               {nachGruppen(ergebnis.positionen).map((g) => (
                 <Fragment key={g.name}>
                   <tr className="gruppenzeile">
-                    <td colSpan={5}>{g.name}</td>
+                    <td colSpan={5}>
+                      {g.nummer} · {g.name}
+                    </td>
                     <td className="zahl">{g.gewicht.toFixed(1)}</td>
                     <td>{g.anteil} %</td>
                   </tr>
                   {g.positionen.map((p) => (
                     <tr key={p.pos}>
-                      <td>{p.pos}</td>
+                      <td>{p.nr}</td>
                       <td>{p.bezeichnung}</td>
                       <td>{p.form ? FORM_KURZ[p.form] ?? p.form : "Matte"}</td>
                       <td className="zahl">{p.laenge.toFixed(2)}</td>
