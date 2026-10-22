@@ -20,6 +20,7 @@ import { anNorm, fykVon, regelwerkVon } from "./regelwerk";
 import { bauteilModul } from "./bauteile";
 import { Kontext } from "./bauteile/typen";
 import { Sammler } from "./bauteile/sammler";
+import { stahlwahlFuer } from "./stahlwahl";
 
 export { Sammler } from "./bauteile/sammler";
 
@@ -54,9 +55,21 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
   const parameter = projekt.parameter;
 
   const regelwerk = regelwerkVon(parameter.regelwerk);
+  const sammler = new Sammler();
+
+  /*
+   * Stahlwahl: Das Modul sagt, welche Stellen es gibt und was dort üblich
+   * ist; der Kunde darf das je Stelle ändern (lib/stahlwahl.ts). Die Liste
+   * wird einmal vorab gebaut, weil sie nur von Maßen und Details abhängt –
+   * nicht davon, was gerade gerechnet wird.
+   */
+  const stellen = modul.stellen(projekt);
+  const nachId = new Map(stellen.map((s) => [s.id, s]));
+  const unterbewehrt: { stelle: string; text: string }[] = [];
+
   const kontext: Kontext = {
     projekt,
-    s: new Sammler(),
+    s: sammler,
     hinweise: [],
     beton: BETONKLASSEN.find((b) => b.name === parameter.betonklasse) ?? BETONKLASSEN[1],
     regelwerk,
@@ -64,6 +77,19 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
     cnom: parameter.betondeckung,
     lagen: parameter.lagen,
     abst: parameter.stababstand,
+    stahl: () => {
+      const stelle = nachId.get(sammler.stelle);
+      // Keine deklarierte Stelle: Das ist ein Fehler im Bauteilmodul, den der
+      // Test aufdeckt. Zur Laufzeit darf er die Berechnung nicht umwerfen –
+      // dann gilt eben die bisherige Vorgabe.
+      if (!stelle)
+        return { durchmesser: 10, abstand: parameter.stababstand, matte: "auto" };
+      return stahlwahlFuer(stelle, projekt.stahl);
+    },
+    unterbewehrt: (text: string) => {
+      unterbewehrt.push({ stelle: sammler.stelle, text });
+      kontext.hinweise.push(`⚠ ${text}`);
+    },
   };
 
   // Das Bauteilmodul erzeugt alle Positionen und liefert die Kennwerte
@@ -92,6 +118,8 @@ export function berechneBewehrung(projekt: Projekt): Ergebnis {
   const gesamtgewicht = Math.round((mattenGewicht + stabstahlGewicht) * 10) / 10;
 
   return {
+    benutzteStellen: [...kontext.s.benutzteStellen],
+    unterbewehrt,
     positionen,
     gesamtgewicht,
     // Betonmenge aus der Bauteilgeometrie, Eigengewicht mit der tatsächlich

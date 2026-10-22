@@ -31,9 +31,28 @@ await seite.click("text=Weiter →");
 await seite.click("text=+ Öffnung hinzufügen");
 await seite.waitForSelector("text=Automatisch berücksichtigte Details");
 
-// Schritt 4 + 5
+// Schritt 4: Anschlüsse
 await seite.click("text=Weiter →");
 await seite.waitForSelector("text=Anschluss unten");
+
+/* --- Schritt 5: Bewehrung je Stelle --- */
+await seite.click("text=Weiter →");
+await seite.waitForSelector("text=Flächenbewehrung");
+// Je Anschluss, je Öffnung und für die Fläche ein eigener Unterpunkt
+const stellen = await seite.locator("section.stelle").count();
+if (stellen < 6)
+  throw new Error(`Zu wenige Bewehrungs-Unterpunkte: ${stellen} (erwartet mindestens 6).`);
+
+// Eine zu dünne Flächenbewehrung muss den Kauf sperren, nicht nur warnen
+await seite.click("text=Stabbewehrung");
+await seite.selectOption("section.stelle >> nth=0 >> select", "8");
+await seite.fill("section.stelle >> nth=0 >> input[type=number]", "30");
+await seite.waitForSelector("text=das reicht nicht");
+
+// zurück auf die Vorgabe
+await seite.click("text=Vorgabe wiederherstellen");
+await seite.waitForSelector("text=Lagermatten");
+
 await seite.click("text=Weiter →");
 await seite.waitForSelector("text=Bautechnische Parameter");
 
@@ -94,7 +113,7 @@ if (festeRaender !== 1)
   throw new Error(
     `Im letzten Abschnitt muss genau der linke Anschluss gesperrt sein, gesperrt: ${festeRaender}`
   );
-await seite.click("text=7 Ergebnis");
+await seite.click("text=8 Ergebnis");
 await seite.waitForSelector("text=Das ganze Bauvorhaben");
 
 const planZwei = await seite.request.post(BASIS + "/api/dokumente", {
@@ -179,6 +198,7 @@ if (fehler.length) {
   process.exit(1);
 }
 console.log(
-  "E2E OK – Checkbox erzwungen (UI + Server), Abschnitte im Plan (7 Blätter) und als ZIP, " +
-    "automatischer Download läuft, Paywall dicht (402), Webhook signaturgeschützt."
+  "E2E OK – Checkbox erzwungen (UI + Server), Bewehrung je Stelle wählbar und zu geringe " +
+    "Wahl gesperrt, Abschnitte im Plan (7 Blätter) und als ZIP, automatischer Download läuft, " +
+    "Paywall dicht (402), Webhook signaturgeschützt."
 );

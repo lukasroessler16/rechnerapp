@@ -23,6 +23,7 @@ import {
   vereinheitliche,
 } from "@/lib/abschnitte";
 import SkizzeSVG from "./SkizzeSVG";
+import Bewehrungsschritt from "./Bewehrungsschritt";
 import AbschnittSVG from "./AbschnittSVG";
 import {
   Step1Bauteil,
@@ -46,6 +47,7 @@ type SchrittSchluessel =
   | "masse"
   | "oeffnungen"
   | "details"
+  | "bewehrung"
   | "parameter"
   | "firmendaten"
   | "ergebnis";
@@ -55,6 +57,7 @@ const TITEL: Record<SchrittSchluessel, string> = {
   masse: "Maße",
   oeffnungen: "Öffnungen",
   details: "Anschlüsse",
+  bewehrung: "Bewehrung",
   parameter: "Parameter",
   firmendaten: "Firmendaten",
   ergebnis: "Ergebnis",
@@ -228,6 +231,9 @@ export default function Wizard() {
     "masse",
     ...(modul.hatOeffnungen ? (["oeffnungen"] as SchrittSchluessel[]) : []),
     "details",
+    // Die Bewehrungswahl steht NACH den Anschlüssen: Welche Stellen es
+    // überhaupt gibt, hängt davon ab, wie das Bauteil angeschlossen ist.
+    "bewehrung",
     "parameter",
     "firmendaten",
     "ergebnis",
@@ -310,6 +316,9 @@ export default function Wizard() {
     masse: <Step2Masse projekt={projekt} set={set} nr={nr("masse")} lage={lage} />,
     oeffnungen: <Step3Oeffnungen projekt={projekt} set={set} nr={nr("oeffnungen")} />,
     details: <Step4Anschluesse projekt={projekt} set={set} nr={nr("details")} lage={lage} />,
+    bewehrung: (
+      <Bewehrungsschritt projekt={projekt} set={set} nr={nr("bewehrung")} lage={lage} />
+    ),
     parameter: <Step5Parameter projekt={projekt} set={set} nr={nr("parameter")} />,
     firmendaten: <Step6Firmendaten projekt={projekt} set={set} nr={nr("firmendaten")} />,
     ergebnis: (

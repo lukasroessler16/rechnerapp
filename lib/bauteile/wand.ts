@@ -21,6 +21,8 @@ import {
   randeinfassung,
   stossEisen,
   stueckImRaster,
+  STELLE,
+  abstandKurz,
   zahl,
 } from "./helfer";
 
@@ -177,6 +179,69 @@ export const wand: Bauteilmodul = {
     return details;
   },
 
+  /**
+   * Die Stellen, an denen die Wand Bewehrung bekommt.
+   *
+   * Welche es sind, hängt vom gewählten Anschluss ab: Ein freier Rand bekommt
+   * Steckbügel, ein Deckenanschluss Anschlusseisen, eine Arbeitsfuge
+   * Stoßeisen. Jede Öffnung kommt als eigene Stelle dazu. Die Kennungen sind
+   * dieselben, die bewehrung() unten über k.s.gruppe() setzt.
+   */
+  stellen(projekt: Projekt) {
+    const d = projekt.details;
+    const stellen = [
+      STELLE.flaeche(
+        projekt,
+        "Flächenbewehrung",
+        "Die Bewehrung der Wandfläche selbst – als Lagermatten oder als Stabstahl in beiden Richtungen."
+      ),
+    ];
+
+    stellen.push(
+      d.unten === "frei"
+        ? STELLE.rand("unten", "Anschluss unten", "Freier unterer Rand: Steckbügel fassen die Bewehrung ein.")
+        : STELLE.anschluss(
+            projekt,
+            "unten",
+            "Anschluss unten",
+            `Anschlusseisen in die ${UNTEN_TEXT[d.unten] ?? "Gründung"} – abgewinkelt, je Lage.`
+          )
+    );
+
+    stellen.push(
+      d.oben === "decke_ueber"
+        ? STELLE.anschluss(projekt, "oben", "Anschluss oben", "Anschlusseisen in die aufgehende Decke, abgewinkelt, je Lage.")
+        : d.oben === "wand_weiter"
+          ? STELLE.anschluss(projekt, "oben", "Anschluss oben", "Arbeitsfuge: gerade Stoßeisen mit voller Übergreifungslänge.")
+          : STELLE.rand("oben", "Anschluss oben", "Freier oberer Rand (Attika): Steckbügel fassen die Bewehrung ein.")
+    );
+
+    for (const seite of ["links", "rechts"] as const) {
+      const titel = seite === "links" ? "Anschluss links" : "Anschluss rechts";
+      const art = d[seite];
+      stellen.push(
+        art === "ecke"
+          ? STELLE.anschluss(projekt, seite, titel, "Eckausbildung: abgewinkelte Eckwinkel über die Wandhöhe, je Lage.")
+          : art === "wandstoss" || art === "wand_weiter"
+            ? STELLE.anschluss(projekt, seite, titel, "Gerade Stoßeisen mit voller Übergreifungslänge über die Wandhöhe.")
+            : STELLE.rand(seite, titel, "Freies Wandende: Steckbügel fassen die Bewehrung ein.")
+      );
+    }
+
+    projekt.oeffnungen.forEach((o, i) => {
+      const marke = oeffnungsMarke(o, i);
+      stellen.push(
+        STELLE.oeffnung(
+          `oef:${o.id}`,
+          `Öffnung ${marke}`,
+          "Zulagen über und unter der Öffnung, seitliche Zulagen und Schrägstäbe an den Ecken."
+        )
+      );
+    });
+
+    return stellen;
+  },
+
   bewehrung(k: Kontext): Kennwerte {
     const { masse, oeffnungen, details } = k.projekt;
     const dickeCm = masse.dicke * 100;
@@ -190,7 +255,7 @@ export const wand: Bauteilmodul = {
     const asMinQuer = asHminGesamt / k.lagen;
 
     /* ---- 2) Flächenbewehrung ---- */
-    k.s.gruppe("Flächenbewehrung");
+    k.s.gruppe("Flächenbewehrung", "flaeche");
     const flaecheBrutto = masse.laenge * masse.hoehe;
     const flaecheNetto = Math.max(
       0,
@@ -198,15 +263,17 @@ export const wand: Bauteilmodul = {
     );
     // Q-Matten tragen in beide Richtungen gleich → maßgebend ist das Maximum
     const asErf = Math.max(asMinHaupt, asMinQuer);
-    const matte = flaechenbewehrung(k, {
+    const flaeche = flaechenbewehrung(k, {
       asErf,
       flaeche: flaecheNetto,
+      laenge: masse.laenge,
+      hoehe: masse.hoehe,
       verwendung: `Flächenbewehrung Wand, ${k.lagen}-lagig`,
       kurz: "Fläche Wand",
     });
 
     /* ---- 3) Anschlüsse an den Rändern ---- */
-    k.s.gruppe("Anschluss unten");
+    k.s.gruppe("Anschluss unten", "unten");
     if (details.unten === "frei") {
       k.hinweise.push("⚠ Wand ohne unteren Anschluss – Lagesicherheit statisch klären.");
       randeinfassung(k, masse.laenge, "unten", masse.dicke);
@@ -219,7 +286,7 @@ export const wand: Bauteilmodul = {
       );
     }
 
-    k.s.gruppe("Anschluss oben");
+    k.s.gruppe("Anschluss oben", "oben");
     if (details.oben === "decke_ueber")
       anschlusseisen(k, masse.laenge, "Decke oben", "Anschluss oben");
     else if (details.oben === "wand_weiter")
@@ -229,15 +296,16 @@ export const wand: Bauteilmodul = {
     /** Seiten, an denen die Wand über eine Arbeitsfuge weiterläuft */
     const seitlicheFugen: string[] = [];
     for (const seite of ["links", "rechts"] as const) {
-      k.s.gruppe(seite === "links" ? "Anschluss links" : "Anschluss rechts");
+      k.s.gruppe(seite === "links" ? "Anschluss links" : "Anschluss rechts", seite);
       const art = details[seite];
       if (art === "ecke") {
+        const w = k.stahl();
         k.s.stab(
-          10,
+          w.durchmesser,
           "winkel",
           [0.8, 0.8],
-          stueckImRaster(masse.hoehe, k.abst) * k.lagen,
-          `Eckausbildung ${seite} (Eckwinkel Ø10/${k.abst / 10})`,
+          stueckImRaster(masse.hoehe, w.abstand) * k.lagen,
+          `Eckausbildung ${seite} (Eckwinkel Ø${w.durchmesser}/${abstandKurz(w.abstand)})`,
           `Ecke ${seite}`
         );
       } else if (art === "wandstoss") {
@@ -271,27 +339,30 @@ export const wand: Bauteilmodul = {
     }
 
     /* ---- 4) Öffnungsverstärkungen ---- */
-    const ls12 = uebergreifung(12); // Verankerung Ø12 ≈ 0,60 m
     oeffnungen.forEach((o, i) => {
       const nr = i + 1;
       const marke = oeffnungsMarke(o, i);
-      k.s.gruppe(`Öffnung ${marke}`);
+      k.s.gruppe(`Öffnung ${marke}`, `oef:${o.id}`);
+      // Durchmesser je Öffnung wählbar; die Verankerungslänge folgt ihm,
+      // sonst läge ein Ø16 mit der Verankerung eines Ø12 im Beton.
+      const w = k.stahl();
+      const ls = uebergreifung(w.durchmesser);
       const reichtBisOben = o.y + o.hoehe >= masse.hoehe - 0.01;
       const hatBruestung = o.y > 0.01;
 
       if (!reichtBisOben)
-        k.s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * k.lagen,
+        k.s.stab(w.durchmesser, "gerade", [o.breite + 2 * ls], 2 * k.lagen,
           `Sturzzulage Öffnung ${nr} (${marke})`, `Sturz ${marke}`);
       if (hatBruestung)
-        k.s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * k.lagen,
+        k.s.stab(w.durchmesser, "gerade", [o.breite + 2 * ls], 2 * k.lagen,
           `Brüstungszulage Öffnung ${nr} (${marke})`, `Brüstung ${marke}`);
-      k.s.stab(12, "gerade", [o.hoehe + 2 * ls12], 2 * k.lagen,
+      k.s.stab(w.durchmesser, "gerade", [o.hoehe + 2 * ls], 2 * k.lagen,
         `Seitliche Zulage Öffnung ${nr} (${marke})`, `Laibung ${marke}`);
 
       // Schrägstäbe nur an echten einspringenden Ecken
       const ecken = (reichtBisOben ? 0 : 2) + (hatBruestung ? 2 : 0);
       if (ecken > 0)
-        k.s.stab(12, "schraegstab", [1.0], ecken * k.lagen,
+        k.s.stab(w.durchmesser, "schraegstab", [1.0], ecken * k.lagen,
           `Schrägstäbe Öffnung ${nr} (${marke})`, `Diagonal ${marke}`);
 
       if (o.breite > 2.0)
@@ -313,13 +384,13 @@ export const wand: Bauteilmodul = {
       ac,
       asMinHaupt: Math.round(asMinHaupt * 100) / 100,
       asMinQuer: Math.round(asMinQuer * 100) / 100,
-      gewaehlteMatte: matte?.name ?? "–",
-      asVorhanden: matte?.as ?? 0,
+      gewaehlteMatte: flaeche.bezeichnung,
+      asVorhanden: flaeche.asVorhanden,
       cnom: k.cnom,
       flaecheNetto: Math.round(flaecheNetto * 100) / 100,
       hauptLabel: "erforderlich (As,min je Lage)",
       hauptEinheit: "cm²/m",
-      wahlLabel: "Lagermatte",
+      wahlLabel: flaeche.label,
       flaecheLabel: "Bewehrungsfläche netto",
     };
   },

@@ -1075,3 +1075,114 @@ table.vergleich tbody tr:last-child td {
   cursor: not-allowed;
 }
 .gesperrt-grund { font-size: 12px; color: var(--ink-soft); margin-top: 3px; }
+
+/* ------------------------------------------------------------------ */
+/* Schritt „Bewehrung": ein Unterpunkt je Bewehrungsstelle             */
+/* ------------------------------------------------------------------ */
+
+.stelle {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+/* Vom Kunden geändert: sichtbar, aber nicht als Warnung */
+.stelle.geaendert {
+  border-left: 3px solid var(--accent);
+  background: #fffaf6;
+}
+.stelle-kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.stelle-kopf h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+.stelle-nr {
+  display: inline-block;
+  min-width: 20px;
+  margin-right: 4px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.stelle-zurueck {
+  border: 0;
+  background: none;
+  padding: 2px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stelle-zurueck:hover { color: var(--accent); }
+.stelle-erklaerung {
+  margin: 4px 0 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Matte oder Stab */
+.art-wahl { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.art-wahl label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 12px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.art-wahl label.aktiv {
+  border-color: var(--accent);
+  background: #fff4ec;
+  font-weight: 600;
+}
+
+/* Zahlenfeld mit Einheit dahinter */
+.mit-einheit { display: flex; align-items: center; gap: 6px; }
+.mit-einheit input { flex: 1; min-width: 0; }
+.mit-einheit span { font-size: 13px; color: var(--ink-soft); }
+
+/* Vorschlagswerte als kleine Knöpfe unter dem Feld */
+.vorschlaege { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+.vorschlaege button {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  padding: 2px 7px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.vorschlaege button:hover { border-color: var(--accent); color: var(--ink); }
+.vorschlaege button.aktiv {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Was ergibt die Wahl? */
+.stelle-ergebnis {
+  margin-top: 10px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: #f0f2f5;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.stelle-ergebnis strong { color: var(--ink); }
+.stelle-ergebnis.zuwenig {
+  background: var(--fehler-bg);
+  color: var(--fehler);
+}
+.stelle-ergebnis.zuwenig strong { color: var(--fehler); }

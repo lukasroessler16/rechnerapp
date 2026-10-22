@@ -31,6 +31,7 @@ import { Kennwerte, Projekt, Pruefmeldung } from "../types";
 import { BETONKLASSEN, stabflaeche, uebergreifung } from "../normdaten";
 import { fykVon, regelwerkVon } from "../regelwerk";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
+import { Bewehrungsstelle } from "../stahlwahl";
 import { abrunden, buegelLagen, verteile, zahl } from "./helfer";
 
 /** für Träger sinnvolle Längsstabdurchmesser [mm] */
@@ -109,6 +110,14 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
 
   const ac = b * h * 10000; // [cm²]
 
+  /*
+   * Vorgaben des Kunden (lib/stahlwahl.ts): gewählt wird der Durchmesser,
+   * gerechnet die Stückzahl. Der Bügelabstand ist nach EC2 9.2.2 begrenzt;
+   * eine Überschreitung wird gemeldet, nicht stillschweigend korrigiert.
+   */
+  const wahlLaengs = projekt.stahl?.laengs;
+  const wahlBuegel = projekt.stahl?.buegel;
+
   /* ---- Bügeldurchmesser: praktisch Ø8, bei kräftigen Trägern mehr ---- */
   let dsw = 8;
 
@@ -128,7 +137,8 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
 
     // wie viele Stäbe passen nebeneinander?
     const kern = Math.max(0.02, b - 2 * ((cnom + dsw) / 1000));
-    const passend = LAENGS_DURCHMESSER.map((kandidat) => {
+    const kandidaten = wahlLaengs?.durchmesser ? [wahlLaengs.durchmesser] : LAENGS_DURCHMESSER;
+    const passend = kandidaten.map((kandidat) => {
       const teilung = kandidat / 1000 + Math.max(MIN_LICHT, kandidat / 1000);
       const maxProLage = Math.max(2, Math.floor((kern + Math.max(MIN_LICHT, kandidat / 1000)) / teilung));
       const noetig = Math.max(2, Math.ceil(asMin / stabflaeche(kandidat)));
@@ -157,7 +167,12 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
 
   /* ---- Bügel (EC2 9.2.2) ---- */
   // ds,w ≥ ds/4 (analog zur Stütze), praktisch mindestens Ø8
-  dsw = BUEGEL_DURCHMESSER.find((x) => x >= Math.max(8, ds / 4)) ?? 12;
+  const dswErf = Math.max(8, ds / 4);
+  dsw = wahlBuegel?.durchmesser ?? BUEGEL_DURCHMESSER.find((x) => x >= dswErf) ?? 12;
+  if (dsw < dswErf)
+    warnungen.push(
+      `⚠ Bügel Ø${dsw} liegt unter dem Mindestwert Ø${Math.ceil(dswErf)} (ds,w ≥ ds/4) – erhöhen.`
+    );
   const rhoMin = (0.08 * Math.sqrt(beton.fck)) / fyk;
   const aswErf = rhoMin * b * 100 * 100; // [cm²/m] Bügelquerschnitt je lfm
 
@@ -182,7 +197,13 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
   // 0,75·d nach EC2 9.2.2(6); zusätzlich baustellenübliche Obergrenze 30 cm –
   // größere Bügelabstände werden im Hochbau praktisch nicht ausgeführt.
   const sZul = Math.min(sAusMin, 0.75 * d, 30);
-  const s = abrunden(sZul, 5) / 100; // [m]
+  const sRegel = abrunden(sZul, 5); // [cm]
+  if (wahlBuegel?.abstand && wahlBuegel.abstand / 10 > sZul + 0.01)
+    warnungen.push(
+      `⚠ Bügelabstand ${Math.round(wahlBuegel.abstand / 10)} cm überschreitet den hier ` +
+        `zulässigen Wert von ${sZul.toFixed(0)} cm (Mindestquerkraftbewehrung bzw. 0,75·d) – enger setzen.`
+    );
+  const s = (wahlBuegel?.abstand ? wahlBuegel.abstand / 10 : sRegel) / 100; // [m]
   const sv = abrunden((s * 100) / 2, 5) / 100; // verdichteter Auflagerbereich
   const lv = Math.min(h, l / 4); // Verdichtungslänge je Ende
 
@@ -208,9 +229,11 @@ export function traegerLayout(projekt: Projekt): TraegerLayout {
   }
 
   /* ---- Hautbewehrung (EC2 9.7) ---- */
-  const dsHaut = 10;
+  const dsHaut = projekt.stahl?.haut?.durchmesser ?? 10;
+  // Abstand der Hautstäbe: Vorgabe EC2 9.7, vom Kunden änderbar
+  const hautAbstand = (projekt.stahl?.haut?.abstand ?? HAUT_ABSTAND * 1000) / 1000;
   const nHaut =
-    h > HAUT_AB_HOEHE ? Math.max(1, Math.ceil((h - 2 * c) / HAUT_ABSTAND) - 1) : 0;
+    h > HAUT_AB_HOEHE ? Math.max(1, Math.ceil((h - 2 * c) / hautAbstand) - 1) : 0;
 
   return {
     l, b, h, d, c, ds, n,
@@ -502,6 +525,51 @@ export const traeger: Bauteilmodul = {
 
   /* ---------------- Bewehrung ---------------- */
 
+  stellen(projekt) {
+    // Vorgaben ohne Kundenwahl – sonst wäre die Vorgabe die eigene Wahl.
+    const t = traegerLayout({ ...projekt, stahl: undefined });
+    const stellen: Bewehrungsstelle[] = [
+      {
+        id: "laengs",
+        titel: "Längsbewehrung",
+        erklaerung:
+          "Die Hauptbewehrung im Feld (beim Kragarm oben). Die Stückzahl folgt aus der Mindestbewehrung und dem gewählten Durchmesser.",
+        standard: { durchmesser: t.ds, abstand: Math.round(t.s * 1000) },
+        asErf: Math.round(t.asMin * 10) / 10,
+        durchmesser: [12, 14, 16, 20],
+        ohneAbstand: true,
+      },
+      {
+        id: "buegel",
+        titel: "Bügel",
+        erklaerung:
+          "Geschlossene Bügel für die Querkraft. Der Abstand ist durch Mindestquerkraftbewehrung und 0,75·d begrenzt; an den Auflagern wird verdichtet.",
+        standard: { durchmesser: t.dsw, abstand: Math.round(t.s * 1000) },
+        durchmesser: [8, 10, 12],
+      },
+    ];
+    if (t.nStuetz > 0 && t.lStuetz > 0)
+      stellen.push({
+        id: "stuetz",
+        titel: "Stützbewehrung Auflager",
+        erklaerung:
+          "Obere Stäbe über den Auflagern gegen Einspannmomente. Ein dickerer Stab ersetzt mehrere dünne – die Stückzahl folgt.",
+        standard: { durchmesser: t.ds, abstand: Math.round(t.s * 1000) },
+        durchmesser: [10, 12, 14, 16, 20],
+        ohneAbstand: true,
+      });
+    if (t.nHaut > 0)
+      stellen.push({
+        id: "haut",
+        titel: "Hautbewehrung",
+        erklaerung:
+          "Seitliche Stäbe hoher Träger gegen Rissbildung (EC2 9.7). Die Anzahl folgt aus der Trägerhöhe.",
+        standard: { durchmesser: t.dsHaut, abstand: 200 },
+        durchmesser: [8, 10, 12],
+      });
+    return stellen;
+  },
+
   bewehrung(k: Kontext): Kennwerte {
     const projekt = k.projekt;
     const t = traegerLayout(projekt);
@@ -514,7 +582,7 @@ export const traeger: Bauteilmodul = {
     const stabLaenge = Math.max(0.3, t.l - 2 * (projekt.parameter.betondeckung / 1000));
 
     /* ---- 1) Hauptbewehrung ---- */
-    k.s.gruppe("Längsbewehrung");
+    k.s.gruppe("Längsbewehrung", "laengs");
     // Beim Kragträger liegt die Hauptbewehrung oben und ist in das
     // einspannende Bauteil zu verankern; sonst liegt sie unten im Feld.
     if (kragarm) {
@@ -550,23 +618,34 @@ export const traeger: Bauteilmodul = {
     }
 
     /* ---- 2) Obere Stützbewehrung an den Auflagern (EC2 9.2.1.2) ---- */
-    k.s.gruppe("Stützbewehrung Auflager");
     if (t.nStuetz > 0 && t.lStuetz > 0) {
+      k.s.gruppe("Stützbewehrung Auflager", "stuetz");
       // je Auflager ein Satz – der Träger hat zwei Enden
+      // Durchmesser wählbar; die Stückzahl wird so angepasst, dass die
+      // Bewehrungsfläche über dem Auflager erhalten bleibt – ein dickerer
+      // Stab ersetzt mehrere dünne, nicht umgekehrt.
+      const wStuetz = k.stahl();
+      const n =
+        wStuetz.durchmesser === t.ds
+          ? t.nStuetz
+          : Math.max(
+              2,
+              Math.ceil((t.nStuetz * stabflaeche(t.ds)) / stabflaeche(wStuetz.durchmesser))
+            );
       k.s.stab(
-        t.ds,
+        wStuetz.durchmesser,
         "gerade",
-        [t.lStuetz + l0],
-        t.nStuetz * 2,
+        [t.lStuetz + uebergreifung(wStuetz.durchmesser)],
+        n * 2,
         system === "durchlauf"
-          ? `Stützbewehrung oben über den Auflagern (${t.nStuetz} Ø${t.ds} je Auflager)`
-          : `Obere Bewehrung Endauflager, Einspannwirkung (${t.nStuetz} Ø${t.ds} je Auflager)`,
+          ? `Stützbewehrung oben über den Auflagern (${n} Ø${wStuetz.durchmesser} je Auflager)`
+          : `Obere Bewehrung Endauflager, Einspannwirkung (${n} Ø${wStuetz.durchmesser} je Auflager)`,
         "Stütz oben"
       );
     }
 
     /* ---- 3) Bügel ---- */
-    k.s.gruppe("Bügel");
+    k.s.gruppe("Bügel", "buegel");
     // Bei 4-schnittiger Ausführung liegt an jeder Stelle ein zweiter,
     // schmalerer Bügel; er wird als eigene Position geführt.
     k.s.stab(
@@ -590,7 +669,7 @@ export const traeger: Bauteilmodul = {
     }
 
     /* ---- 4) Hautbewehrung (EC2 9.7) ---- */
-    k.s.gruppe("Hautbewehrung");
+    k.s.gruppe("Hautbewehrung", "haut");
     if (t.nHaut > 0) {
       k.s.stab(
         t.dsHaut,

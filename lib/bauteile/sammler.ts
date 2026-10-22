@@ -34,12 +34,26 @@ export class Sammler {
   private reihenfolge: string[] = [];
 
   /**
+   * Kennung der aktuellen Gruppe = der Bewehrungsstelle, deren Stahlwahl
+   * gerade gilt (siehe lib/stahlwahl.ts). Der Name ist Anzeigetext und darf
+   * sich ändern; die Kennung ist der Schlüssel, unter dem die Wahl des
+   * Kunden gespeichert ist.
+   */
+  stelle = STANDARD_GRUPPE;
+
+  /** Kennungen aller Gruppen, die tatsächlich Bewehrung bekommen haben */
+  readonly benutzteStellen = new Set<string>();
+
+  /**
    * Alles ab hier gehört zu dieser Gruppe, bis die nächste gesetzt wird.
    * Mehrfach derselbe Name ist zulässig und erlaubt, später noch etwas zu
    * einer früheren Gruppe zu ergänzen.
+   *
+   * @param id Kennung der Bewehrungsstelle; ohne Angabe gilt der Name.
    */
-  gruppe(name: string) {
+  gruppe(name: string, id?: string) {
     this.aktuell = name;
+    this.stelle = id ?? name;
     if (!this.reihenfolge.includes(name)) this.reihenfolge.push(name);
   }
 
@@ -120,6 +134,7 @@ export class Sammler {
   /** Gruppen, die ohne ausdrückliches gruppe() entstehen, trotzdem einreihen */
   private merkeGruppe() {
     if (!this.reihenfolge.includes(this.aktuell)) this.reihenfolge.push(this.aktuell);
+    this.benutzteStellen.add(this.stelle);
   }
 
   /**

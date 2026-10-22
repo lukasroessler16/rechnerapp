@@ -18,6 +18,7 @@
 
 import { deflateSync, inflateSync } from "zlib";
 import { MATTEN_STOSS_STANDARD, istMattenstoss } from "./normdaten";
+import { bereinigeWahlen } from "./stahlwahl";
 import { Projekt } from "./types";
 import { Bauvorhaben, MAX_ABSCHNITTE, begrenzeAbschnitte, vereinheitliche } from "./abschnitte";
 import { alleMassfelder, bauteilModul, istBauteil, STANDARD_BAUTEIL } from "./bauteile";
@@ -186,10 +187,21 @@ export function validiereProjekt(p: unknown): Projekt {
     stababstand: num(q.parameter?.stababstand ?? 250, 100, 400, "Stababstand"),
     // Nur die angebotenen Stöße zulassen – ein frei gesetzter Wert könnte die
     // Mattenzahl beliebig nach unten rechnen.
+    // Frei eintragbar, aber in Grenzen: Ein Stoß von 2 cm würde die
+    // Mattenzahl beliebig kleinrechnen.
     mattenstoss: istMattenstoss(q.parameter?.mattenstoss)
-      ? q.parameter.mattenstoss
+      ? Math.round(Number(q.parameter.mattenstoss))
       : MATTEN_STOSS_STANDARD,
   };
+
+  /* ---------- Stahlwahl je Bewehrungsstelle ---------- */
+  // Nur Stellen, die es bei diesem Bauteil und diesen Details wirklich gibt,
+  // und nur Werte, die auf eine Biegeliste dürfen.
+  q.stahl = bereinigeWahlen(
+    q.stahl,
+    modul.stellen(q).map((s) => s.id)
+  );
+  if (Object.keys(q.stahl).length === 0) delete q.stahl;
 
   /* ---------- Firmendaten ---------- */
   const txt = (v: unknown, max = 120) => String(v ?? "").slice(0, max);

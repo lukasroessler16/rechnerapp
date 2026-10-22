@@ -37,7 +37,7 @@ import {
   C_MIN_UNTERGRUND,
   fundamentDeckung,
   imRaster,
-  stabRaster,
+  stabRasterMitWahl,
   verteile,
   zahl,
 } from "./helfer";
@@ -151,7 +151,8 @@ export function einzelfundamentLayout(projekt: Projekt): EinzelfundamentLayout {
       d = (h - z) * 100;
       asBiegung = Math.max((0.26 * beton.fctm * 100 * d) / fyk, 0.0013 * 100 * d);
       asMin = gedrungen ? AS_KONSTRUKTIV_FUNDAMENT : asBiegung;
-      const wahl = stabRaster(asMin, DURCHMESSER, ABSTAENDE);
+      // Vorgabe des Kunden geht vor; sonst die wirtschaftlichste Kombination
+      const wahl = stabRasterMitWahl(asMin, DURCHMESSER, ABSTAENDE, projekt.stahl?.unten);
       if (wahl.ds === ds && runde > 0) break;
       ds = wahl.ds;
       s = wahl.s;
@@ -197,7 +198,12 @@ export function einzelfundamentLayout(projekt: Projekt): EinzelfundamentLayout {
 
   /* ---- obere Lage (konstruktiv, beide Richtungen) ---- */
   const obereLage = projekt.details.bewehrung === "unten_oben";
-  const obenWahl = stabRaster(AS_KONSTRUKTIV_FUNDAMENT, DURCHMESSER, ABSTAENDE);
+  const obenWahl = stabRasterMitWahl(
+    AS_KONSTRUKTIV_FUNDAMENT,
+    DURCHMESSER,
+    ABSTAENDE,
+    projekt.stahl?.oben
+  );
 
   return {
     a, b, h, sx, sy, cU, cO,
@@ -452,13 +458,40 @@ export const einzelfundament: Bauteilmodul = {
 
   /* ---------------- Bewehrung ---------------- */
 
+  stellen(projekt) {
+    const f = einzelfundamentLayout({ ...projekt, stahl: undefined });
+    const haupt = f.richtungen[0];
+    const stellen = [
+      {
+        id: "unten",
+        titel: "Untere Bewehrung",
+        erklaerung:
+          "Die unten liegenden Stäbe in beiden Richtungen, Enden aufgebogen. Sie tragen den Sohldruck ab.",
+        standard: { durchmesser: haupt.ds, abstand: Math.round(haupt.s * 1000) },
+        asErf: haupt.asMin,
+        durchmesser: [10, 12, 14, 16, 20],
+      },
+    ];
+    if (f.obereLage)
+      stellen.push({
+        id: "oben",
+        titel: "Obere Bewehrung",
+        erklaerung:
+          "Konstruktive obere Lage – nötig bei Abheben, ausmittiger Last oder weichem Baugrund.",
+        standard: { durchmesser: f.obenDs, abstand: Math.round(f.obenS * 1000) },
+        asErf: AS_KONSTRUKTIV_FUNDAMENT,
+        durchmesser: [8, 10, 12, 14],
+      });
+    return stellen;
+  },
+
   bewehrung(k: Kontext): Kennwerte {
     const projekt = k.projekt;
     const f = einzelfundamentLayout(projekt);
     for (const w of f.warnungen) k.hinweise.push(w);
 
     /* ---- 1) untere Bewehrung in beiden Richtungen ---- */
-    k.s.gruppe("Untere Bewehrung");
+    k.s.gruppe("Untere Bewehrung", "unten");
     for (const r of f.richtungen) {
       const seite = r.achse === "x" ? "Länge a" : "Breite b";
       k.s.stab(
@@ -474,7 +507,7 @@ export const einzelfundament: Bauteilmodul = {
     }
 
     /* ---- 2) obere Lage, falls vorgesehen ---- */
-    k.s.gruppe("Obere Bewehrung");
+    k.s.gruppe("Obere Bewehrung", "oben");
     if (f.obereLage) {
       for (const r of f.richtungen) {
         const seite = r.achse === "x" ? "Länge a" : "Breite b";
@@ -498,7 +531,7 @@ export const einzelfundament: Bauteilmodul = {
     }
 
     /* ---- 3) Anschluss der Stütze ---- */
-    k.s.gruppe("Anschluss Stütze");
+    k.s.gruppe("Anschluss Stütze", "anschluss");
     if (projekt.details.stuetze === "ortbeton")
       k.hinweise.push(
         "Die Steckeisen der Ortbetonstütze sind Teil des Bauteils „Stütze“ (dort: Steckeisen Stützenfuß) und in dieser Liste bewusst nicht enthalten, damit sie nicht doppelt bestellt werden."

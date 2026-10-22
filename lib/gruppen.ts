@@ -41,11 +41,15 @@ export function nachGruppen(positionen: Position[]): Positionsgruppe[] {
       gruppen.push(g);
     }
     g.positionen.push(p);
-    g.gewicht = Math.round((g.gewicht + p.gewichtGesamt) * 10) / 10;
+    // Unterwegs NICHT runden: Bei vielen kleinen Gruppen summierten sich die
+    // Rundungsfehler sonst so weit auf, dass die Zwischensummen nicht mehr
+    // das Gesamtgewicht ergaben – auf einer Bestellliste ein echter Mangel.
+    g.gewicht += p.gewichtGesamt;
   }
 
   for (const g of gruppen) {
     g.anteil = gesamt > 0 ? Math.round((g.gewicht / gesamt) * 100) : 0;
+    g.gewicht = Math.round(g.gewicht * 10) / 10;
   }
   return gruppen;
 }

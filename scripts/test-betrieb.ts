@@ -28,6 +28,8 @@ import { MAX_ABSCHNITTE, abschnittsStreifen, teilbar } from "../lib/abschnitte";
 import { dokumentplan } from "../lib/dokumente";
 import { PAYLOAD_VERSION } from "../lib/version";
 import { MUSTERPROJEKT } from "../lib/muster";
+import { berechneBewehrung } from "../lib/bewehrung";
+import { pruefeProjekt } from "../lib/validierung";
 
 /** Umgebung für einen Prüffall setzen und danach wiederherstellen */
 function mitUmgebung(werte: Record<string, string | undefined>, fn: () => void) {
@@ -347,6 +349,65 @@ if (new Set(planVier.map((d) => d.name)).size !== planVier.length)
 if (!planVier[0].name.startsWith("Abschnitt-01-"))
   throw new Error("Die Abschnittsnummer muss vorne stehen, damit die Dateien sortiert liegen.");
 console.log("Dateiplan: 1 Abschnitt → 3 Blätter, 4 Abschnitte → 13 Blätter, Namen eindeutig");
+
+/* ------------------------------------------------------------------ */
+/* 4c) Stahlwahl je Bewehrungsstelle                                   */
+/* ------------------------------------------------------------------ */
+
+console.log("\n=== Stahlwahl ===");
+
+// Eine gültige Wahl muss den Weg über Stripe unverändert überstehen –
+// sonst bekäme der Kunde nach der Zahlung andere Dokumente als in der
+// Vorschau.
+const mitWahl = {
+  ...MUSTERPROJEKT,
+  stahl: { unten: { durchmesser: 12, abstand: 200 }, flaeche: { art: "stab" as const, durchmesser: 12, abstand: 150 } },
+};
+const zurueck = metadataZuBauvorhaben(projektZuMetadata([mitWahl]))[0];
+if (zurueck.stahl?.unten?.durchmesser !== 12 || zurueck.stahl?.unten?.abstand !== 200)
+  throw new Error("Eine gültige Stahlwahl muss den Payload-Weg unverändert überstehen.");
+if (zurueck.stahl?.flaeche?.art !== "stab")
+  throw new Error("Auch die Wahl Matte/Stab muss erhalten bleiben.");
+
+// Unsinnige Werte dürfen nicht auf eine Biegeliste gelangen, auch nicht
+// über eine veränderte Anfrage: Ø99 gibt es nicht, 2 mm Abstand ist nicht
+// betonierbar, und eine Stelle, die es bei diesem Bauteil nicht gibt,
+// gehört verworfen.
+const gereinigt = validiereBauvorhaben([
+  {
+    ...MUSTERPROJEKT,
+    stahl: {
+      unten: { durchmesser: 99, abstand: 2 },
+      gibtesnicht: { durchmesser: 12 },
+      oben: { durchmesser: 14 },
+    },
+  },
+])[0];
+if (gereinigt.stahl?.unten !== undefined)
+  throw new Error("Ein unmöglicher Durchmesser und Abstand müssen verworfen werden.");
+if ((gereinigt.stahl as Record<string, unknown>)?.gibtesnicht !== undefined)
+  throw new Error("Eine Stelle, die es bei diesem Bauteil nicht gibt, muss verworfen werden.");
+if (gereinigt.stahl?.oben?.durchmesser !== 14)
+  throw new Error("Eine gültige Wahl darf dabei nicht verloren gehen.");
+
+// Die Wahl muss auch wirklich mehr Stahl ergeben
+const mitDickerem = berechneBewehrung({
+  ...MUSTERPROJEKT,
+  stahl: { unten: { durchmesser: 16, abstand: 150 } },
+});
+if (mitDickerem.gesamtgewicht <= berechneBewehrung(MUSTERPROJEKT).gesamtgewicht)
+  throw new Error("Ø16/15 statt Ø10/25 muss mehr Stahl ergeben.");
+
+// Zu geringe Bewehrung sperrt den Kauf, statt nur zu warnen
+const zuWenig = {
+  ...MUSTERPROJEKT,
+  stahl: { flaeche: { art: "stab" as const, durchmesser: 8, abstand: 300 } },
+};
+if (!pruefeProjekt(zuWenig).some((m) => m.schwere === "fehler" && m.feld.startsWith("stahl:")))
+  throw new Error("Eine Wahl unter der Mindestbewehrung muss ein Fehler sein, keine Warnung.");
+if (pruefeProjekt(MUSTERPROJEKT).some((m) => m.feld.startsWith("stahl:")))
+  throw new Error("Ohne eigene Wahl darf keine Stahl-Meldung entstehen.");
+console.log("Stahlwahl übersteht den Checkout, unmögliche Werte werden verworfen, zu wenig sperrt");
 
 /* ------------------------------------------------------------------ */
 /* 5) Alarmierung und Statistik (asynchron)                            */

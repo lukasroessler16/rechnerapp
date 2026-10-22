@@ -11,6 +11,7 @@
  */
 
 import { Betonmenge } from "./beton";
+import { Stahlwahlen } from "./stahlwahl";
 
 
 /** Bauteilkennung, z. B. "wand" – gültige Werte liefert lib/bauteile */
@@ -98,6 +99,12 @@ export interface Projekt {
   oeffnungen: Oeffnung[];
   details: Details;
   parameter: Parameter;
+  /**
+   * Abweichende Stahlwahl je Bewehrungsstelle (siehe lib/stahlwahl.ts).
+   * Fehlt ein Eintrag, gilt die Vorgabe des Bauteilmoduls – ein Projekt ohne
+   * dieses Feld rechnet deshalb genau wie vorher.
+   */
+  stahl?: Stahlwahlen;
   firmendaten: Firmendaten;
 }
 
@@ -226,4 +233,15 @@ export interface Ergebnis {
   beton: Betonmenge;
   /** Fachliche Hinweise, z. B. wo statische Prüfung erforderlich ist */
   hinweise: string[];
+  /**
+   * Kennungen der Bewehrungsstellen, an denen tatsächlich Stahl entstanden
+   * ist. Daran prüft scripts/test-berechnung.ts, dass die im Wizard
+   * angebotenen Stellen genau die sind, die es auch wirklich gibt.
+   */
+  benutzteStellen: string[];
+  /**
+   * Stellen, an denen die gewählte Bewehrung unter der erforderlichen liegt.
+   * Die Prüfung macht daraus blockierende Fehler (lib/validierung.ts).
+   */
+  unterbewehrt: { stelle: string; text: string }[];
 }

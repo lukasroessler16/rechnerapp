@@ -20,6 +20,7 @@ import { Oeffnung, Projekt, Pruefmeldung } from "./types";
 import { alleMassfelder, bauteilModul } from "./bauteile";
 import { feldFaktor } from "./bauteile/typen";
 import { oeffnungsMarke } from "./bauteile/helfer";
+import { berechneBewehrung } from "./bewehrung";
 
 export type { Pruefmeldung } from "./types";
 export { oeffnungsMarke } from "./bauteile/helfer";
@@ -197,6 +198,25 @@ export function pruefeProjekt(projekt: Projekt): Pruefmeldung[] {
   /* ---------- bauteilspezifische Zusatzprüfungen ---------- */
   if (modul.pruefe) meldungen.push(...modul.pruefe(projekt));
 
+  /*
+   * Zu gering gewählte Bewehrung sperrt den Kauf.
+   *
+   * Die Wahl des Stahls liegt beim Kunden – die Verantwortung dafür, dass
+   * eine verkaufte Liste nicht unter der Mindestbewehrung liegt, nicht. Wer
+   * einen zu dünnen Stab oder eine zu kleine Matte einstellt, bekommt
+   * deshalb keinen Hinweis, sondern einen Fehler: Der Bezahlknopf bleibt
+   * gesperrt, bis die Wahl die erforderliche Bewehrung deckt.
+   *
+   * Nur wenn tatsächlich etwas gewählt wurde: Reicht schon die Vorgabe des
+   * Programms nicht aus (sehr hohe Mindestbewehrung), ist das ein fachlicher
+   * Hinweis und keine Fehleingabe – daran kann der Kunde hier nichts ändern.
+   */
+  if (projekt.stahl && Object.keys(projekt.stahl).length > 0) {
+    for (const m of berechneBewehrung(projekt).unterbewehrt)
+      if (projekt.stahl[m.stelle])
+        meldungen.push({ feld: `stahl:${m.stelle}`, schwere: "fehler", text: m.text });
+  }
+
   return meldungen;
 }
 
@@ -206,6 +226,7 @@ export function pruefeProjekt(projekt: Projekt): Pruefmeldung[] {
  * Nummer geliefert, weil die Schrittfolge je Bauteil unterschiedlich lang ist
  * (Bauteile ohne Öffnungen überspringen den Öffnungsschritt).
  */
-export function schrittZuMeldung(m: Pruefmeldung): "masse" | "oeffnungen" {
+export function schrittZuMeldung(m: Pruefmeldung): "masse" | "oeffnungen" | "bewehrung" {
+  if (m.feld.startsWith("stahl:")) return "bewehrung";
   return m.feld.startsWith("oef:") ? "oeffnungen" : "masse";
 }

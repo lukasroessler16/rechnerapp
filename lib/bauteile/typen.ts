@@ -22,6 +22,7 @@ import { Kennwerte, Projekt, Pruefmeldung } from "../types";
 import { Betonklasse } from "../normdaten";
 import { Regelwerk } from "../regelwerk";
 import { Sammler } from "./sammler";
+import { Bewehrungsstelle, Stahlwahl } from "../stahlwahl";
 
 /* ------------------------------------------------------------------ */
 /* Eingabefelder                                                       */
@@ -187,6 +188,22 @@ export interface Kontext {
   lagen: 1 | 2;
   /** Raster der Anschlussbewehrung [mm] */
   abst: number;
+  /**
+   * Stahlwahl der gerade gesetzten Gruppe (= Bewehrungsstelle).
+   *
+   * Die Bauteilmodule fragen damit, WAS an dieser Stelle verlegt wird –
+   * Durchmesser, Abstand, bei Flächen auch Matte oder Stab. WIE VIEL daraus
+   * wird, rechnen sie weiterhin selbst. Ohne Kundenwahl kommt die Vorgabe
+   * zurück, die das Modul in `stellen()` angegeben hat.
+   */
+  stahl(): Stahlwahl;
+  /**
+   * Meldet, dass die an dieser Stelle gewählte Bewehrung die erforderliche
+   * nicht erreicht. Das ist kein Hinweis, sondern ein Mangel: Er sperrt die
+   * Freischaltung, damit niemand eine Liste kauft, die zu wenig Stahl
+   * ausweist. Der Text steht zusätzlich in den Hinweisen.
+   */
+  unterbewehrt(text: string): void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -297,6 +314,19 @@ export interface Bauteilmodul {
 
   /** ermittelt alle Bewehrungspositionen und liefert die Kennwerte */
   bewehrung(k: Kontext): Kennwerte;
+
+  /**
+   * Die Stellen, an denen dieses Bauteil Bewehrung bekommt – mit der Vorgabe
+   * des Programms und einer Erklärung dazu. Daraus baut der Wizard die
+   * Unterpunkte, in denen der Kunde den Stahl wählt.
+   *
+   * Die Liste hängt von den gewählten Details ab: Ein freier Rand bekommt
+   * Steckbügel, ein Deckenanschluss Anschlusseisen, und je Öffnung kommt eine
+   * Stelle dazu. Die Kennungen müssen genau die sein, die `bewehrung()` über
+   * `k.s.gruppe(name, id)` setzt – scripts/test-berechnung.ts prüft das für
+   * jedes Bauteil in vielen Kombinationen.
+   */
+  stellen(projekt: Projekt): Bewehrungsstelle[];
 
   /** bauteilspezifische Plausibilitätsprüfungen (optional) */
   pruefe?(projekt: Projekt): Pruefmeldung[];

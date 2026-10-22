@@ -20,7 +20,7 @@ import {
 } from "@/lib/bauteile";
 import { Massfeld, feldFaktor } from "@/lib/bauteile/typen";
 import { gemeinsameMasse, gesperrteDetails } from "@/lib/abschnitte";
-import { BETONKLASSEN, LAGERMATTEN, MATTEN_STOESSE } from "@/lib/normdaten";
+import { BETONKLASSEN } from "@/lib/normdaten";
 import { REGELWERKE, cnomAusExposition, regelwerkVon } from "@/lib/regelwerk";
 import { berechneBewehrung, oeffnungsDetails } from "@/lib/bewehrung";
 import { Pruefmeldung, fehlerZu, oeffnungsMarke, pruefeProjekt } from "@/lib/validierung";
@@ -774,36 +774,16 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
       </section>
 
       {/*
-        Gruppe 3 hängt von der Bewehrungsart des Bauteils ab. Flächenbauteile
-        bekommen die Mattenfelder, Stabbauteile (Stütze, Träger, Fundamente)
-        ihre eigenen Angaben – nicht beides nebeneinander, von dem die Hälfte
-        wirkungslos ist.
+        Mattenwahl, Übergreifungsstoß und das Raster der Anschlusseisen stehen
+        NICHT mehr hier: Sie gehören zu einzelnen Bewehrungsstellen und werden
+        im Schritt „Bewehrung" je Stelle gewählt (components/Bewehrungsschritt).
+        Hier bleibt, was für das ganze Bauteil gilt.
       */}
       {mitMatten ? (
         <section className="gruppe">
-          <h3 className="gruppe-titel">Mattenbewehrung</h3>
+          <h3 className="gruppe-titel">Flächenbewehrung</h3>
 
           <div className="reihe">
-            <div className="feld">
-              <label>
-                Lagermatte
-                <Erklaerung thema="matte" />
-              </label>
-              <select value={par.matte} onChange={(e) => setPar({ matte: e.target.value })}>
-                <option value="auto">automatisch (wirtschaftlichste)</option>
-                {LAGERMATTEN.map((m) => (
-                  <option key={m.name} value={m.name}>
-                    {m.name} ({m.as} cm²/m)
-                  </option>
-                ))}
-              </select>
-              <div className="hinweis">
-                {par.matte === "auto"
-                  ? "kleinste ausreichende Matte"
-                  : "feste Vorgabe – Deckung wird geprüft"}
-              </div>
-            </div>
-
             <div className="feld">
               <label>
                 Bewehrungslagen
@@ -818,46 +798,29 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
               </select>
               <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
             </div>
-          </div>
-
-          <div className="reihe">
-            <div className="feld">
-              <label>
-                Übergreifungsstoß der Matten
-                <Erklaerung thema="mattenstoss" />
-              </label>
-              <select
-                value={par.mattenstoss}
-                onChange={(e) => setPar({ mattenstoss: Number(e.target.value) })}
-              >
-                {MATTEN_STOESSE.map((m) => (
-                  <option key={m.wert} value={m.wert}>
-                    {m.titel}
-                  </option>
-                ))}
-              </select>
-              <div className="hinweis">
-                geht in Länge und Breite ab – wirkt doppelt auf die Mattenzahl
-              </div>
-            </div>
 
             <div className="feld">
               <label>
-                Raster Anschlussbewehrung
+                Raster der Anschlussbewehrung
                 <Erklaerung thema="stababstand" />
               </label>
               <select
                 value={par.stababstand}
                 onChange={(e) => setPar({ stababstand: Number(e.target.value) })}
               >
-                <option value={150}>Ø10 / 15 cm (eng)</option>
-                <option value={200}>Ø10 / 20 cm</option>
-                <option value={250}>Ø10 / 25 cm (Standard)</option>
+                <option value={150}>15 cm (eng)</option>
+                <option value={200}>20 cm</option>
+                <option value={250}>25 cm (Standard)</option>
               </select>
               <div className="hinweis">
-                Abstand der Anschlusseisen an Rändern und Stößen
+                Vorgabe für die Anschlüsse – je Stelle im Schritt „Bewehrung“ änderbar
               </div>
             </div>
+          </div>
+
+          <div className="hinweis">
+            Welche Matte, welcher Übergreifungsstoß und ob überhaupt Matten oder
+            Stäbe: Das steht im Schritt „Bewehrung“ bei der Flächenbewehrung.
           </div>
         </section>
       ) : (

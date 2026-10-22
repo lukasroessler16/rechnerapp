@@ -135,9 +135,22 @@ export const MATTEN_STOESSE = [
 /** Vorgabe, solange nichts anderes gewählt ist [mm] */
 export const MATTEN_STOSS_STANDARD = 350;
 
+/**
+ * Grenzen des Übergreifungsstoßes [mm].
+ *
+ * Der Stoß ist frei eintragbar – die Werte oben sind Vorschläge. Nach unten
+ * begrenzt EC2 8.7.5.1 den Mattenstoß auf 15 cm bzw. eine Maschenweite, nach
+ * oben hat ein Stoß über 80 cm keinen praktischen Sinn mehr: Dann ist eine
+ * Matte mit höherem Querschnitt wirtschaftlicher als doppelt gestoßener
+ * Verschnitt.
+ */
+export const MATTEN_STOSS_MIN = 150;
+export const MATTEN_STOSS_MAX = 800;
+
 /** Ist dieser Mattenstoß wählbar? */
 export function istMattenstoss(v: unknown): boolean {
-  return MATTEN_STOESSE.some((m) => m.wert === v);
+  const x = Number(v);
+  return isFinite(x) && x >= MATTEN_STOSS_MIN && x <= MATTEN_STOSS_MAX;
 }
 
 /** Verschnittzuschlag Matten (Zuschnitt an Rändern/Öffnungen) */

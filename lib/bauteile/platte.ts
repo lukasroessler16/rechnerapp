@@ -14,12 +14,14 @@
 import { Kennwerte, Projekt } from "../types";
 import { uebergreifung } from "../normdaten";
 import { Ansicht, Bauteilmodul, Detailfeld, Kontext } from "./typen";
+import { Bewehrungsstelle } from "../stahlwahl";
 import {
   anschlusseisen,
   flaechenAnsicht,
   flaechenbewehrung,
   oeffnungsMarke,
   randeinfassung,
+  STELLE,
   zahl,
 } from "./helfer";
 
@@ -54,6 +56,13 @@ interface PlattenArt {
   randName: Record<string, string>;
   /** setzt die Randbewehrung um und ergänzt Hinweise */
   randBewehrung(k: Kontext, rand: Rand, art: string, strecke: number): void;
+  /**
+   * Die Bewehrungsstellen desselben Randes – eine je Art von Stahl, die dort
+   * liegt. Steht bewusst direkt neben randBewehrung(): Was die eine Funktion
+   * erzeugt, muss die andere anbieten. Geprüft wird das in
+   * scripts/test-berechnung.ts.
+   */
+  randStellen(projekt: Projekt, rand: Rand, art: string): Bewehrungsstelle[];
   /** zusätzliche fachliche Hinweise nach der Hauptberechnung */
   hinweise(k: Kontext): void;
   verwendungMatte(lagen: 1 | 2): string;
@@ -135,6 +144,28 @@ function baue(art: PlattenArt): Bauteilmodul {
       return [a];
     },
 
+    stellen(projekt) {
+      const stellen = [
+        STELLE.flaeche(
+          projekt,
+          "Flächenbewehrung",
+          `Die Bewehrung der ${art.name.toLowerCase()} selbst – als Lagermatten oder als Stabstahl in beiden Richtungen.`
+        ),
+      ];
+      for (const r of RAENDER)
+        stellen.push(...art.randStellen(projekt, r, projekt.details[r]));
+      projekt.oeffnungen.forEach((o, i) =>
+        stellen.push(
+          STELLE.oeffnung(
+            `oef:${o.id}`,
+            `Aussparung ${oeffnungsMarke(o, i)}`,
+            "Wechselzulagen rundum und Schrägstäbe an den Ecken der Aussparung."
+          )
+        )
+      );
+      return stellen;
+    },
+
     oeffnungsHinweise(projekt, i) {
       const o = projekt.oeffnungen[i];
       const details = [
@@ -161,35 +192,39 @@ function baue(art: PlattenArt): Bauteilmodul {
       const asMinQuer = 0.2 * asMin;
 
       /* ---- 2) Flächenbewehrung ---- */
-      k.s.gruppe("Flächenbewehrung");
+      k.s.gruppe("Flächenbewehrung", "flaeche");
       const flaecheNetto = Math.max(
         0,
         masse.laenge * masse.hoehe -
           oeffnungen.reduce((a, o) => a + o.breite * o.hoehe, 0)
       );
-      const matte = flaechenbewehrung(k, {
+      const flaeche = flaechenbewehrung(k, {
         asErf: Math.max(asMinHaupt, asMinQuer),
         flaeche: flaecheNetto,
+        laenge: masse.laenge,
+        hoehe: masse.hoehe,
         verwendung: art.verwendungMatte(k.lagen),
         kurz: art.kurzMatte,
       });
 
       /* ---- 3) Ränder ---- */
-      k.s.gruppe("Randeinfassung");
+      // Jeder Rand ist eine eigene Stelle; randBewehrung() setzt die Gruppe
+      // selbst, weil ein Rand je nach Detail auch zwei Arten Stahl bekommt.
       for (const r of RAENDER)
         art.randBewehrung(k, r, details[r], randLaenge(k.projekt, r));
 
       /* ---- 4) Aussparungen ---- */
-      const ls12 = uebergreifung(12);
       oeffnungen.forEach((o, i) => {
         const nr = i + 1;
         const marke = oeffnungsMarke(o, i);
-        k.s.gruppe(`Aussparung ${marke}`);
-        k.s.stab(12, "gerade", [o.breite + 2 * ls12], 2 * k.lagen,
+        k.s.gruppe(`Aussparung ${marke}`, `oef:${o.id}`);
+        const w = k.stahl();
+        const ls = uebergreifung(w.durchmesser);
+        k.s.stab(w.durchmesser, "gerade", [o.breite + 2 * ls], 2 * k.lagen,
           `Wechselzulage längs, Aussparung ${nr} (${marke})`, `Wechsel ${marke} längs`);
-        k.s.stab(12, "gerade", [o.hoehe + 2 * ls12], 2 * k.lagen,
+        k.s.stab(w.durchmesser, "gerade", [o.hoehe + 2 * ls], 2 * k.lagen,
           `Wechselzulage quer, Aussparung ${nr} (${marke})`, `Wechsel ${marke} quer`);
-        k.s.stab(12, "schraegstab", [1.0], 4 * k.lagen,
+        k.s.stab(w.durchmesser, "schraegstab", [1.0], 4 * k.lagen,
           `Schrägstäbe Aussparung ${nr} (${marke})`, `Diagonal ${marke}`);
         if (o.breite > 1.0 || o.hoehe > 1.0)
           k.hinweise.push(`⚠ Aussparung ${nr} > 1,0 m: Deckenwechsel statisch nachweisen.`);
@@ -203,13 +238,13 @@ function baue(art: PlattenArt): Bauteilmodul {
         nutzhoehe: Math.round(nutzhoehe * 10) / 10,
         asMinHaupt: Math.round(asMinHaupt * 100) / 100,
         asMinQuer: Math.round(asMinQuer * 100) / 100,
-        gewaehlteMatte: matte?.name ?? "–",
-        asVorhanden: matte?.as ?? 0,
+        gewaehlteMatte: flaeche.bezeichnung,
+        asVorhanden: flaeche.asVorhanden,
         cnom: k.cnom,
         flaecheNetto: Math.round(flaecheNetto * 100) / 100,
         hauptLabel: "erforderlich (As,min Hauptrichtung)",
         hauptEinheit: "cm²/m",
-        wahlLabel: "Lagermatte",
+        wahlLabel: flaeche.label,
         flaecheLabel: "Bewehrungsfläche netto",
       };
     },
@@ -246,6 +281,7 @@ export const bodenplatte = baue({
     frei: "freier Rand (Steckbügel)",
   },
   randBewehrung(k, rand, wahl, strecke) {
+    k.s.gruppe(`Rand ${rand}`, `rand:${rand}`);
     if (wahl === "wand_darueber") {
       anschlusseisen(k, strecke, `Wand ${rand}`, `Anschluss ${rand}`);
     } else if (wahl === "frostschuerze") {
@@ -256,6 +292,14 @@ export const bodenplatte = baue({
     } else {
       randeinfassung(k, strecke, rand, k.projekt.masse.dicke);
     }
+  },
+  randStellen(projekt, rand, wahl) {
+    const titel = `Rand ${rand}`;
+    if (wahl === "wand_darueber")
+      return [STELLE.anschluss(projekt, `rand:${rand}`, titel, "Anschlusseisen für die aufgehende Wand, abgewinkelt, je Lage.")];
+    if (wahl === "frostschuerze")
+      return [STELLE.anschluss(projekt, `rand:${rand}`, titel, "Anschlusseisen in die Frostschürze bzw. den Randbalken.")];
+    return [STELLE.rand(`rand:${rand}`, titel, "Freier Plattenrand: Steckbügel fassen die Bewehrung ein.")];
   },
   hinweise(k) {
     if (k.lagen === 1)
@@ -303,12 +347,14 @@ export const deckenplatte = baue({
     frei: "freier Rand",
   },
   randBewehrung(k, rand, wahl, strecke) {
+    k.s.gruppe(`Rand ${rand}`, `rand:${rand}`);
     randeinfassung(k, strecke, rand, k.projekt.masse.dicke);
     if (wahl === "wand_auflager" && k.lagen === 1)
       k.hinweise.push(
         `⚠ Auflagerrand „${rand}“: obere Stützbewehrung (Einspannung) statisch festlegen – hier nur untere Lage erfasst.`
       );
     if (wahl === "unterzug") {
+      k.s.gruppe(`Unterzug ${rand}`, `uz:${rand}`);
       anschlusseisen(k, strecke, `Unterzug ${rand}`, `Unterzug ${rand}`);
       k.hinweise.push(
         `Rand „${rand}“: Unterzug ist ein eigenes Bauteil – Längsbewehrung und Bügel gesondert ermitteln (Bauteil „Träger“).`
@@ -318,6 +364,16 @@ export const deckenplatte = baue({
       k.hinweise.push(
         `⚠ Rand „${rand}“ frei/auskragend: Kragmomente erzeugen obere Zugbewehrung – zwingend statisch bemessen.`
       );
+  },
+  randStellen(projekt, rand, wahl) {
+    const stellen = [
+      STELLE.rand(`rand:${rand}`, `Rand ${rand}`, "Randeinfassung des Deckenrands: Steckbügel umfassen die Bewehrung."),
+    ];
+    if (wahl === "unterzug")
+      stellen.push(
+        STELLE.anschluss(projekt, `uz:${rand}`, `Unterzug ${rand}`, "Anschlusseisen in den Unterzug, abgewinkelt, je Lage.")
+      );
+    return stellen;
   },
   hinweise(k) {
     const { masse } = k.projekt;

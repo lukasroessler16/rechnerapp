@@ -26,6 +26,7 @@
 import { Kennwerte, Projekt, Pruefmeldung } from "../types";
 import { stabflaeche, uebergreifung } from "../normdaten";
 import { Ansicht, Bauteilmodul, Kontext, Zeichenelement } from "./typen";
+import { Bewehrungsstelle } from "../stahlwahl";
 import { abrunden, buegelLagen, verteile, zahl } from "./helfer";
 
 /** für Stützen sinnvolle Längsstabdurchmesser [mm] */
@@ -90,6 +91,16 @@ export function stuetzenLayout(projekt: Projekt): StuetzenLayout {
   // geometrische Mindestbewehrung; die 4 Eckstäbe Ø12 sind zusätzlich Pflicht
   const asMin = Math.max(0.002 * ac, 4 * stabflaeche(12));
 
+  /*
+   * Vorgaben des Kunden (lib/stahlwahl.ts). Gewählt wird der Durchmesser,
+   * gerechnet die Stückzahl: Bei einem dünneren Stab braucht es mehr davon,
+   * um dieselbe Mindestbewehrung zu erreichen. Der Bügelabstand ist nach
+   * oben durch EC2 9.5.3 begrenzt – wird er überschritten, rechnet das
+   * Programm damit und warnt, statt die Wahl stillschweigend zu verwerfen.
+   */
+  const wahlLaengs = projekt.stahl?.laengs;
+  const wahlBuegel = projekt.stahl?.buegel;
+
   // Bügeldurchmesser vorläufig, damit die Kernmaße bestimmt werden können
   let dsw = 8;
   let ds = LAENGS_DURCHMESSER[0];
@@ -104,14 +115,18 @@ export function stuetzenLayout(projekt: Projekt): StuetzenLayout {
     nx = Math.max(2, Math.ceil(kernB / MAX_STABABSTAND) + 1) + zusatz;
     ny = Math.max(2, Math.ceil(kernT / MAX_STABABSTAND) + 1) + zusatz;
     const n = 2 * nx + 2 * ny - 4;
-    const passend = LAENGS_DURCHMESSER.find((d) => n * stabflaeche(d) >= asMin);
+    const passend = wahlLaengs?.durchmesser
+      ? n * stabflaeche(wahlLaengs.durchmesser) >= asMin
+        ? wahlLaengs.durchmesser
+        : undefined
+      : LAENGS_DURCHMESSER.find((d) => n * stabflaeche(d) >= asMin);
     if (passend) {
       ds = passend;
       asVorh = n * stabflaeche(passend);
       break;
     }
     // nichts gefunden: mit dem größten Durchmesser weiterrechnen und mehr Stäbe
-    ds = LAENGS_DURCHMESSER[LAENGS_DURCHMESSER.length - 1];
+    ds = wahlLaengs?.durchmesser ?? LAENGS_DURCHMESSER[LAENGS_DURCHMESSER.length - 1];
     asVorh = n * stabflaeche(ds);
     if (zusatz === 7)
       warnungen.push(
@@ -123,7 +138,12 @@ export function stuetzenLayout(projekt: Projekt): StuetzenLayout {
   // In Österreich sind gebogene Stützenbügel praktisch immer mindestens Ø8 –
   // Ø6 wird für Bügelkörbe nicht verarbeitet.
   const dswErf = Math.max(8, ds / 4);
-  dsw = BUEGEL_DURCHMESSER.find((d) => d >= dswErf) ?? 12;
+  dsw = wahlBuegel?.durchmesser ?? BUEGEL_DURCHMESSER.find((d) => d >= dswErf) ?? 12;
+  if (dsw < dswErf)
+    warnungen.push(
+      `⚠ Bügel Ø${dsw} liegt unter dem Mindestwert Ø${Math.ceil(dswErf)} nach EC2 9.5.3 ` +
+        `(ds,w ≥ max(6 mm; ds/4)) – Bügeldurchmesser erhöhen.`
+    );
 
   const c = (cnom + dsw) / 1000;
   const n = 2 * nx + 2 * ny - 4;
@@ -137,8 +157,15 @@ export function stuetzenLayout(projekt: Projekt): StuetzenLayout {
   /* ---- Bügelabstände (EC2 9.5.3) ---- */
   // auf 5-cm-Werte abrunden: baustellentaugliche, runde Bügelabstände
   const sMaxMm = Math.min(20 * ds, Math.min(b, t) * 1000, 400);
-  const s = abrunden(sMaxMm, 50) / 1000; // Regelabstand [m]
-  const sv = abrunden(0.6 * sMaxMm, 50) / 1000; // Verdichtungsbereich [m]
+  const sRegel = abrunden(sMaxMm, 50);
+  if (wahlBuegel?.abstand && wahlBuegel.abstand > sMaxMm)
+    warnungen.push(
+      `⚠ Bügelabstand ${Math.round(wahlBuegel.abstand / 10)} cm überschreitet den nach ` +
+        `EC2 9.5.3 zulässigen Höchstabstand von ${Math.round(sMaxMm / 10)} cm – enger setzen.`
+    );
+  const s = (wahlBuegel?.abstand ?? sRegel) / 1000; // Regelabstand [m]
+  // Verdichtungsbereich bleibt im Verhältnis zum Regelabstand
+  const sv = abrunden(0.6 * (wahlBuegel?.abstand ?? sMaxMm), 50) / 1000;
   const lv = Math.max(b, t); // Länge des Verdichtungsbereichs [m]
 
   /* ---- Höhenlagen der Bügel ---- */
@@ -343,6 +370,43 @@ export const stuetze: Bauteilmodul = {
 
   /* ---------------- Bewehrung ---------------- */
 
+  stellen(projekt) {
+    // Vorgaben ohne die Kundenwahl ermitteln – sonst wäre die „Vorgabe"
+    // immer genau das, was der Kunde zuletzt gewählt hat.
+    const l = stuetzenLayout({ ...projekt, stahl: undefined });
+    const stellen: Bewehrungsstelle[] = [
+      {
+        id: "laengs",
+        titel: "Längsbewehrung",
+        erklaerung:
+          "Die senkrechten Stäbe der Stütze. Je dünner der Stab, desto mehr Stück braucht es für dieselbe Mindestbewehrung – die Anzahl rechnet das Programm.",
+        standard: { durchmesser: l.ds, abstand: Math.round(l.s * 1000) },
+        asErf: Math.round(l.asMin * 10) / 10,
+        durchmesser: [12, 14, 16, 20],
+        ohneAbstand: true,
+      },
+      {
+        id: "buegel",
+        titel: "Bügel",
+        erklaerung:
+          "Geschlossene Rechteckbügel. Ihr Abstand ist nach EC2 9.5.3 nach oben begrenzt; an Stützenkopf und -fuß wird er verdichtet.",
+        standard: { durchmesser: l.dsw, abstand: Math.round(l.s * 1000) },
+        durchmesser: [8, 10, 12],
+      },
+    ];
+    if (projekt.details.fuss !== "frei")
+      stellen.push({
+        id: "fuss",
+        titel: "Anschluss Stützenfuß",
+        erklaerung:
+          "Steckeisen aus dem Fundament bzw. der Platte in die Stütze. Sie haben so viele Stück wie Längsstäbe und folgen deren Durchmesser.",
+        standard: { durchmesser: l.ds, abstand: Math.round(l.s * 1000) },
+        durchmesser: [12, 14, 16, 20],
+        ohneAbstand: true,
+      });
+    return stellen;
+  },
+
   bewehrung(k: Kontext): Kennwerte {
     const projekt = k.projekt;
     const l = stuetzenLayout(projekt);
@@ -352,7 +416,7 @@ export const stuetze: Bauteilmodul = {
     const l0 = uebergreifung(l.ds); // Übergreifungslänge ≈ 50·ds [m]
 
     /* ---- 1) Längsbewehrung ---- */
-    k.s.gruppe("Längsbewehrung");
+    k.s.gruppe("Längsbewehrung", "laengs");
     // Stäbe laufen von OK Anschluss bis Stützenkopf; beim Stoß nach oben
     // kommt die Übergreifungslänge dazu.
     const zuschlagKopf = kopf === "stuetze_weiter" ? l0 : 0;
@@ -367,7 +431,7 @@ export const stuetze: Bauteilmodul = {
     );
 
     /* ---- 2) Bügel ---- */
-    k.s.gruppe("Bügel");
+    k.s.gruppe("Bügel", "buegel");
     // geschlossener Rechteckbügel mit Haken 2 × 10·ds,w
     const haken = (2 * 10 * l.dsw) / 1000;
     k.s.stab(
@@ -380,22 +444,30 @@ export const stuetze: Bauteilmodul = {
     );
 
     /* ---- 3) Anschluss am Stützenfuß ---- */
-    k.s.gruppe("Anschluss Stützenfuß");
+    k.s.gruppe("Anschluss Stützenfuß", "fuss");
     if (fuss === "frei") {
       k.hinweise.push(
         "⚠ Stütze ohne Fußanschluss – Lagesicherheit und Einspannung statisch klären."
       );
     } else {
       // Steckeisen: senkrechter Schenkel = Übergreifung + Einbindung,
-      // waagrechter Schenkel = Verankerung im anschließenden Bauteil
-      const senkrecht = l0 + 0.2;
-      const waagrecht = Math.max(0.15, (15 * l.ds) / 1000);
+      // waagrechter Schenkel = Verankerung im anschließenden Bauteil.
+      // Der Durchmesser ist eigens wählbar – manche Betriebe stecken
+      // dickere Eisen als die Längsbewehrung. Stückzahl und Längen folgen.
+      const wFuss = k.stahl();
+      const dsFuss = wFuss.durchmesser;
+      const senkrecht = uebergreifung(Math.max(dsFuss, l.ds)) + 0.2;
+      const waagrecht = Math.max(0.15, (15 * dsFuss) / 1000);
+      if (dsFuss < l.ds)
+        k.hinweise.push(
+          `⚠ Steckeisen Ø${dsFuss} sind dünner als die Längsbewehrung Ø${l.ds} – der Stoß am Stützenfuß ist dann maßgebend und statisch zu prüfen.`
+        );
       k.s.stab(
-        l.ds,
+        dsFuss,
         "winkel",
         [senkrecht, waagrecht],
         l.n,
-        `Steckeisen Stützenfuß in ${FUSS_NAME[fuss] ?? fuss} (${l.n} Ø${l.ds})`,
+        `Steckeisen Stützenfuß in ${FUSS_NAME[fuss] ?? fuss} (${l.n} Ø${dsFuss})`,
         "Steckeisen Fuß"
       );
       // Im Stoßbereich gilt die verdichtete Bügellage (EC2 8.7.4.1)

@@ -40,7 +40,7 @@ import {
   C_MIN_UNTERGRUND,
   fundamentDeckung,
   imRaster,
-  stabRaster,
+  stabRasterMitWahl,
   verteile,
   zahl,
 } from "./helfer";
@@ -131,6 +131,14 @@ export function fundamentLayout(projekt: Projekt): FundamentLayout {
   const krag = Math.max(0, (b - wand) / 2);
   const ac = b * h * 10000; // [cm²]
 
+  /*
+   * Vorgaben des Kunden je Bewehrungsstelle (lib/stahlwahl.ts). Gewählt
+   * werden Durchmesser und Abstand, gerechnet wird die Stückzahl – und
+   * geprüft, ob die erreichte Bewehrung die Mindestbewehrung deckt.
+   */
+  const wahlQuer = projekt.stahl?.quer;
+  const wahlLaengs = projekt.stahl?.laengs;
+
   /* ---- Querbewehrung unten (Kragarm wirkt wie eine Platte) ---- */
   const durchmesser = korb ? BUEGEL_DURCHMESSER : QUER_DURCHMESSER;
   // Nutzhöhe mit einem mittleren Durchmesser vorschätzen und danach schärfen
@@ -150,8 +158,9 @@ export function fundamentLayout(projekt: Projekt): FundamentLayout {
     asBiegung = Math.max((0.26 * beton.fctm * 100 * d) / fyk, 0.0013 * 100 * d);
     asQuerMin = biegebeansprucht ? asBiegung : AS_KONSTRUKTIV_FUNDAMENT;
 
-    // wirtschaftlichste Kombination aus Durchmesser und Abstand
-    const wahl = stabRaster(asQuerMin, durchmesser, ABSTAENDE);
+    // wirtschaftlichste Kombination aus Durchmesser und Abstand – oder die
+    // Vorgabe des Kunden, wenn er eine gemacht hat
+    const wahl = stabRasterMitWahl(asQuerMin, durchmesser, ABSTAENDE, wahlQuer);
     if (wahl.ds === dsQ && runde > 0) break;
     dsQ = wahl.ds;
     sQ = wahl.s;
@@ -179,12 +188,16 @@ export function fundamentLayout(projekt: Projekt): FundamentLayout {
   const asLaengsMin = 0.2 * asQuerVorh * b; // [cm²] über die ganze Breite
   const kernB = Math.max(0.05, b - 2 * cU - 2 * (dsQ / 1000));
   const nAusAbstand = Math.max(2, Math.ceil(kernB / MAX_LAENGS_ABSTAND) + 1);
-  const wahlL =
-    LAENGS_DURCHMESSER.map((ds) => ({
-      ds,
-      n: Math.max(4, nAusAbstand, Math.ceil(asLaengsMin / stabflaeche(ds))),
-    })).find((k) => k.n <= 8) ??
-    { ds: LAENGS_DURCHMESSER[LAENGS_DURCHMESSER.length - 1], n: 8 };
+  const wahlL = wahlLaengs?.durchmesser
+    ? {
+        ds: wahlLaengs.durchmesser,
+        n: Math.max(4, nAusAbstand, Math.ceil(asLaengsMin / stabflaeche(wahlLaengs.durchmesser))),
+      }
+    : LAENGS_DURCHMESSER.map((ds) => ({
+        ds,
+        n: Math.max(4, nAusAbstand, Math.ceil(asLaengsMin / stabflaeche(ds))),
+      })).find((k) => k.n <= 8) ??
+      { ds: LAENGS_DURCHMESSER[LAENGS_DURCHMESSER.length - 1], n: 8 };
   const dsL = wahlL.ds;
   const nL = wahlL.n;
   const asLaengsVorh = nL * stabflaeche(dsL);
@@ -461,13 +474,38 @@ export const streifenfundament: Bauteilmodul = {
 
   /* ---------------- Bewehrung ---------------- */
 
+  stellen(projekt) {
+    const f = fundamentLayout({ ...projekt, stahl: undefined });
+    return [
+      {
+        id: "quer",
+        titel: "Querbewehrung",
+        erklaerung: f.korb
+          ? "Geschlossene Bügel; ihr Untergurt ist zugleich die Querbewehrung unten."
+          : "Die unten liegenden Querstäbe mit aufgebogenen Enden. Sie tragen den Kragarm des Fundaments.",
+        standard: { durchmesser: f.dsQ, abstand: Math.round(f.sQ * 1000) },
+        asErf: Math.round(f.asQuerMin * 100) / 100,
+        durchmesser: [8, 10, 12, 14, 16],
+      },
+      {
+        id: "laengs",
+        titel: "Längsbewehrung",
+        erklaerung:
+          "Die durchlaufenden Stäbe in Fundamentrichtung – mindestens 20 % der Querbewehrung (EC2 9.3.1.1). Die Stückzahl folgt aus dem Durchmesser.",
+        standard: { durchmesser: f.dsL, abstand: Math.round(f.sQ * 1000) },
+        durchmesser: [10, 12, 14, 16],
+        ohneAbstand: true,
+      },
+    ];
+  },
+
   bewehrung(k: Kontext): Kennwerte {
     const projekt = k.projekt;
     const f = fundamentLayout(projekt);
     for (const w of f.warnungen) k.hinweise.push(w);
 
     /* ---- 1) Querbewehrung: U-Stäbe bzw. geschlossene Bügel ---- */
-    k.s.gruppe("Querbewehrung");
+    k.s.gruppe("Querbewehrung", "quer");
     if (f.korb) {
       const haken = (2 * 10 * f.dsQ) / 1000;
       k.s.stab(
@@ -490,7 +528,7 @@ export const streifenfundament: Bauteilmodul = {
     }
 
     /* ---- 2) Längsbewehrung ---- */
-    k.s.gruppe("Längsbewehrung");
+    k.s.gruppe("Längsbewehrung", "laengs");
     k.s.stab(
       f.dsL,
       "gerade",
@@ -516,7 +554,7 @@ export const streifenfundament: Bauteilmodul = {
       );
 
     /* ---- 3) Anschluss der aufgehenden Wand ---- */
-    k.s.gruppe("Anschluss Wand");
+    k.s.gruppe("Anschluss Wand", "anschluss");
     // Bewusst OHNE eigene Position: Die Steckeisen der aufgehenden Wand
     // gehören zum Bauteil „Wand" und sind dort als Anschlussbewehrung
     // bereits enthalten – sonst würde derselbe Stahl doppelt bestellt.

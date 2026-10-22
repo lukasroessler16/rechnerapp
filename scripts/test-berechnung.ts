@@ -20,6 +20,7 @@ import {
   standardMasse,
 } from "../lib/bauteile";
 import { nachGruppen } from "../lib/gruppen";
+import { ABSTAND_MAX, ABSTAND_MIN, DURCHMESSER } from "../lib/stahlwahl";
 import { STANDARD_GRUPPE } from "../lib/bauteile/sammler";
 import { Projekt } from "../lib/types";
 import {
@@ -757,10 +758,17 @@ for (const modul of BAUTEILE) {
   if (gruppen.some((g) => g.name === STANDARD_GRUPPE))
     throw new Error(`${modul.id}: Positionen ohne eigene Gruppe (${STANDARD_GRUPPE}).`);
 
-  // Die Zwischensummen müssen das Gesamtgewicht ergeben, sonst stimmt eine
-  // der beiden Zahlen auf der Stückliste nicht.
+  /*
+   * Die Zwischensummen müssen das Gesamtgewicht ergeben, sonst stimmt eine
+   * der beiden Zahlen auf der Stückliste nicht.
+   *
+   * Zur Toleranz: Jede Zwischensumme wird für die Anzeige auf 100 g gerundet,
+   * das Gesamtgewicht aus den ungerundeten Positionen gebildet. Bei n Gruppen
+   * können sich daraus bis zu n × 50 g Unterschied ergeben – das ist
+   * Darstellung, kein Rechenfehler. Alles darüber hinaus wäre einer.
+   */
   const summe = Math.round(gruppen.reduce((a, g) => a + g.gewicht, 0) * 10) / 10;
-  if (Math.abs(summe - erg.gesamtgewicht) > 0.15)
+  if (Math.abs(summe - erg.gesamtgewicht) > 0.05 * gruppen.length + 0.051)
     throw new Error(
       `${modul.id}: Summe der Gruppen ${summe} kg ≠ Gesamtgewicht ${erg.gesamtgewicht} kg.`
     );
@@ -874,6 +882,101 @@ const gemogelt = metadataZuBauvorhaben(
 if (gemogelt.parameter.mattenstoss !== MATTEN_STOSS_STANDARD)
   throw new Error("Ein unzulässiger Mattenstoß muss auf den Standardwert zurückfallen.");
 console.log("Unzulässiger Mattenstoß wird serverseitig verworfen");
+
+/* ------------------------------------------------------------------ */
+/* 9g) Bewehrungsstellen: angeboten = tatsächlich vorhanden            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Der Wizard baut seine Unterpunkte aus modul.stellen(). Bietet ein Modul
+ * eine Stelle an, die seine bewehrung() nie benutzt, stellt der Kunde dort
+ * etwas ein, das folgenlos bleibt – und wundert sich auf der Stückliste.
+ * Fehlt umgekehrt eine Stelle, lässt sich vorhandene Bewehrung nicht ändern,
+ * und die Berechnung fällt auf eine Vorgabe zurück, die nirgends steht.
+ *
+ * Geprüft wird über alle Detailkombinationen: Jedes Detailfeld wird einmal
+ * auf jede seiner Optionen gestellt, zusätzlich mit und ohne Öffnung.
+ */
+
+console.log("\n=== Bewehrungsstellen ===");
+
+for (const modul of BAUTEILE) {
+  const grund: Projekt = {
+    ...wand,
+    bauteil: modul.id,
+    masse: standardMasse(modul),
+    details: standardDetails(modul),
+    oeffnungen: modul.hatOeffnungen
+      ? [{ id: "1", typ: modul.oeffnungsTypen?.[0] ?? "aussparung", x: 1, y: 0.9, breite: 1, hoehe: 1 }]
+      : [],
+  };
+
+  /** alle Varianten: Grundfall plus je Detailfeld jede Option einmal */
+  const varianten: Projekt[] = [grund];
+  if (modul.hatOeffnungen) varianten.push({ ...grund, oeffnungen: [] });
+  for (const feld of modul.details)
+    for (const option of feld.optionen)
+      varianten.push({ ...grund, details: { ...grund.details, [feld.schluessel]: option.wert } });
+
+  let geprüfteStellen = 0;
+  for (const p of varianten) {
+    const angeboten = modul.stellen(p);
+    const ids = angeboten.map((s) => s.id);
+
+    if (new Set(ids).size !== ids.length)
+      throw new Error(`${modul.id}: doppelte Kennung in stellen() (${ids.join(", ")}).`);
+    for (const s of angeboten) {
+      if (!s.titel || !s.erklaerung)
+        throw new Error(`${modul.id}: Stelle "${s.id}" ohne Titel oder Erklärung.`);
+      if (!DURCHMESSER.includes(s.standard.durchmesser))
+        throw new Error(
+          `${modul.id}: Stelle "${s.id}" schlägt Ø${s.standard.durchmesser} vor, den es nicht gibt.`
+        );
+      if (s.standard.abstand < ABSTAND_MIN || s.standard.abstand > ABSTAND_MAX)
+        throw new Error(
+          `${modul.id}: Stelle "${s.id}" schlägt einen Abstand von ${s.standard.abstand} mm vor.`
+        );
+    }
+
+    // Was hat die Berechnung tatsächlich benutzt?
+    const benutzt = new Set(berechneBewehrung(p).benutzteStellen);
+
+    for (const id of benutzt)
+      if (!ids.includes(id))
+        throw new Error(
+          `${modul.id}: bewehrung() legt Stahl an der Stelle "${id}" ab, ` +
+            `stellen() bietet sie aber nicht an (angeboten: ${ids.join(", ")}).`
+        );
+    for (const id of ids)
+      if (!benutzt.has(id))
+        throw new Error(
+          `${modul.id}: stellen() bietet "${id}" an, dort entsteht aber keine Bewehrung ` +
+            `(benutzt: ${[...benutzt].join(", ")}).`
+        );
+    geprüfteStellen += ids.length;
+  }
+
+  /* ---- Die Wahl muss auch wirken ---- */
+  const stellen = modul.stellen(grund);
+  for (const s of stellen) {
+    if (s.flaeche) continue; // Flächen werden unten eigens geprüft
+    const dicker = DURCHMESSER.filter((d) => d > s.standard.durchmesser).pop();
+    if (!dicker) continue;
+    const vorher = berechneBewehrung(grund);
+    const nachher = berechneBewehrung({ ...grund, stahl: { [s.id]: { durchmesser: dicker } } });
+    const stäbeMit = (e: typeof vorher, d: number) =>
+      e.positionen.filter((x) => x.art === "stab" && x.durchmesser === d).length;
+    if (stäbeMit(nachher, dicker) <= stäbeMit(vorher, dicker))
+      throw new Error(
+        `${modul.id}: Die Wahl Ø${dicker} an der Stelle "${s.id}" wirkt sich nicht aus.`
+      );
+  }
+
+  console.log(
+    `${modul.id.padEnd(18)} ${stellen.length} Stellen · ${varianten.length} Varianten geprüft ` +
+      `(${geprüfteStellen} Zuordnungen)`
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* 10) Payload-Roundtrip für jedes Bauteil                             */

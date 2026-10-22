@@ -1,6 +1,6 @@
 # Projektnotizen (für nahtlose Fortsetzung in jeder Claude-Sitzung)
 
-Stand: 2026-10-14 · Status: **funktional fertig, Berechnungen fachlich
+Stand: 2026-10-22 · Status: **funktional fertig, Berechnungen fachlich
 geprüft, vor dem Live-Gang** (Build ✓, `npm test` ✓, E2E ✓,
 Paywall-Negativtest ✓).
 
@@ -73,6 +73,44 @@ Abschnitt. Bewusst ein Wrapper statt eines Umbaus von `Projekt`.
   und den Einzelabruf. Dateinamen mit führender Abschnittsnummer, damit im
   Download-Ordner nicht vier gleich heißende Baupläne liegen.
 
+## Stahlwahl je Bewehrungsstelle (Oktober 2026)
+
+`lib/stahlwahl.ts`. Eine **Bewehrungsstelle** ist dieselbe Einheit wie eine
+Positionsgruppe („Anschluss oben", „Öffnung F1") – deshalb gibt es keine
+zweite Gliederung daneben, und was der Kunde als Block einstellt, findet er
+auf der Stückliste als Block wieder. Jedes Bauteilmodul liefert
+`stellen(projekt)`: Kennung, Titel, eine Erklärung und die Vorgabe des
+Programms. Die Liste hängt von den Details ab (freier Rand → Steckbügel,
+Deckenanschluss → Anschlusseisen, je Öffnung eine Stelle).
+
+* Gewählt werden **Durchmesser und Abstand**, gerechnet wird die
+  **Stückzahl** – bei Stellen ohne Raster (Öffnungszulagen, Längsbewehrung
+  einer Stütze) entfällt das Abstandsfeld (`ohneAbstand`).
+* Der Kern reicht die Wahl über `k.stahl()` an die Module durch; sie fragen
+  damit die Stelle ab, in der sie gerade sammeln (`k.s.gruppe(name, id)`).
+* **Flächen** (`flaeche: true`) haben zusätzlich Matte oder Stab. Bei Stab
+  rechnet `flaechenbewehrungStab()` beide Richtungen aus Ø und Abstand.
+* **Zu wenig gewählt = Fehler, nicht Hinweis**: `k.unterbewehrt()` landet in
+  `Ergebnis.unterbewehrt`, `pruefeProjekt()` macht daraus einen
+  blockierenden Fehler – aber nur, wenn der Kunde an dieser Stelle selbst
+  etwas gewählt hat. Reicht schon die Vorgabe nicht, ist das ein fachlicher
+  Hinweis, an dem er nichts ändern kann.
+* Der **Mattenstoß** ist frei eintragbar (15–80 cm) mit den vier üblichen
+  Werten als Vorschlagsknöpfen.
+* Serverseitig: `bereinigeWahlen()` in `validiereProjekt()` wirft unbekannte
+  Stellen und unmögliche Werte weg. Ohne Kundenwahl rechnet alles exakt wie
+  vorher – die acht Regressionswerte sind unverändert.
+* **Die Prüfung gegen Drift** steht in `scripts/test-berechnung.ts`: Für
+  jedes Bauteil und jede Detailkombination muss die Menge der angebotenen
+  Stellen genau der Menge entsprechen, an denen Bewehrung entsteht, und jede
+  Wahl muss sich nachweislich auswirken. Eine angebotene Stelle ohne Wirkung
+  wäre eine Lüge, eine fehlende eine grundlose Einschränkung.
+
+NOCH NICHT: Matten für Fundamente und die Stützmauer-Wandscheibe. Dort ist
+heute Stabbewehrung gesetzt; wie eine Matte am Fundamentrand zu verankern
+ist (statt aufgebogener Stabenden, EC2 9.8.2.2), ist eine fachliche
+Festlegung – die gehört vom Partner entschieden, nicht erfunden.
+
 ## Regelwerk AT/DE
 
 `lib/regelwerk.ts` – der Umschalter ändert die Rechnung, nicht nur die Wörter:
@@ -99,7 +137,7 @@ DE 1,88 cm²/m / Q188A.
 
 ## Tests
 
-`npm test` (Typen, Stil, Berechnung, Betrieb, PDFs) · `npm run pruefen`
+`npm test` (Typen, Stil, Berechnung, Betrieb, PDFs, Layout) · `npm run pruefen`
 (zusätzlich Build) · `npm run test:e2e -- 3000` bei laufendem Server.
 Die Wand ist der Regressionsfall: **446,7 kg, 12 Positionen** – ändert sich
 das beim Anfassen eines anderen Bauteils, ist etwas kaputt.

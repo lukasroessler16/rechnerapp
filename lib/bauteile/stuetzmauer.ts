@@ -35,7 +35,7 @@ import {
   biegebemessung,
   fundamentDeckung,
   imRaster,
-  stabRaster,
+  stabRasterMitWahl,
   verteile,
   zahl,
 } from "./helfer";
@@ -236,24 +236,34 @@ export function stuetzmauerLayout(projekt: Projekt): StuetzmauerLayout {
   // je Seite die Hälfte der vertikalen Mindestbewehrung des Anhangs
   const asWandMin = (regelwerk.wandVertikalFaktor / 2) * acWand;
 
+  /*
+   * Vorgabe des Kunden je Stelle, sonst die wirtschaftlichste Kombination
+   * (lib/stahlwahl.ts). Ob die gewählte Bewehrung die erforderliche deckt,
+   * prüft die Stützmauer weiter unten und meldet es – sie ist das einzige
+   * Bauteil, das aus dem Erddruck bemessen wird, da wiegt das schwerer.
+   */
+  const raster = (id: string, asErf: number) =>
+    stabRasterMitWahl(asErf, DURCHMESSER, ABSTAENDE, projekt.stahl?.[id]);
+
   const wandErfErd = Math.max(bemWand.asErf, asWandMin);
-  const wErd = stabRaster(wandErfErd, DURCHMESSER, ABSTAENDE);
-  const wLuft = stabRaster(Math.max(0.25 * wErd.as, asWandMin), DURCHMESSER, ABSTAENDE);
-  const wHoriz = stabRaster(
-    Math.max(0.25 * (wErd.as + wLuft.as), 0.001 * acWand),
-    DURCHMESSER,
-    ABSTAENDE
-  );
+  const wErd = raster("wand_erd", wandErfErd);
+  const wLuft = raster("wand_luft", Math.max(0.25 * wErd.as, asWandMin));
+  const wHoriz = raster("wand_horiz", Math.max(0.25 * (wErd.as + wLuft.as), 0.001 * acWand));
 
   const fundErfOben = Math.max(bemFerse.asErf, 2.0);
   const fundErfUnten = Math.max(bemZehe.asErf, 2.0);
-  const fOben = stabRaster(fundErfOben, DURCHMESSER, ABSTAENDE);
-  const fUnten = stabRaster(fundErfUnten, DURCHMESSER, ABSTAENDE);
+  const fOben = raster("fund_quer", fundErfOben);
+  const fUnten = raster("fund_quer", fundErfUnten);
 
   /* ---- Längsbewehrung des Fundaments (≥ 20 % der Querbewehrung) ---- */
   const asLaengs = 0.2 * Math.max(fOben.as, fUnten.as) * bf;
-  const laengsWahl =
-    DURCHMESSER.map((ds) => ({
+  const laengsVorgabe = projekt.stahl?.fund_laengs?.durchmesser;
+  const laengsWahl = laengsVorgabe
+    ? {
+        ds: laengsVorgabe,
+        n: Math.max(4, Math.ceil(bf / 0.3) + 1, Math.ceil(asLaengs / stabflaeche(laengsVorgabe))),
+      }
+    : DURCHMESSER.map((ds) => ({
       ds,
       n: Math.max(4, Math.ceil(bf / 0.3) + 1, Math.ceil(asLaengs / stabflaeche(ds))),
     })).find((k) => k.n <= 10) ?? { ds: 16, n: 10 };
@@ -595,6 +605,53 @@ export const stuetzmauer: Bauteilmodul = {
 
   /* ---------------- Bewehrung ---------------- */
 
+  stellen(projekt) {
+    const w = stuetzmauerLayout({ ...projekt, stahl: undefined });
+    return [
+      {
+        id: "wand_erd",
+        titel: "Wandscheibe erdseitig",
+        erklaerung:
+          "Die Hauptbewehrung der Mauer: senkrechte Stäbe auf der Erdseite, in die Ferse abgebogen. Sie nehmen das Moment aus dem Erddruck auf.",
+        standard: { durchmesser: w.wandErd.ds, abstand: Math.round(w.wandErd.s * 1000) },
+        asErf: w.wandErd.asErf,
+        durchmesser: [10, 12, 14, 16, 20],
+      },
+      {
+        id: "wand_luft",
+        titel: "Wandscheibe luftseitig",
+        erklaerung: "Konstruktive senkrechte Bewehrung auf der Luftseite der Mauer.",
+        standard: { durchmesser: w.wandLuft.ds, abstand: Math.round(w.wandLuft.s * 1000) },
+        durchmesser: [8, 10, 12, 14],
+      },
+      {
+        id: "wand_horiz",
+        titel: "Wandscheibe horizontal",
+        erklaerung: "Waagrechte Bewehrung beidseitig gegen Zwang und Schwinden.",
+        standard: { durchmesser: w.wandHoriz.ds, abstand: Math.round(w.wandHoriz.s * 1000) },
+        durchmesser: [8, 10, 12, 14],
+      },
+      {
+        id: "fund_quer",
+        titel: "Fundament quer",
+        erklaerung:
+          "Querbewehrung des Fundaments oben (Ferse) und unten (Zehe), Enden aufgebogen. Beide Lagen folgen dieser Wahl.",
+        standard: { durchmesser: w.fundOben.ds, abstand: Math.round(w.fundOben.s * 1000) },
+        asErf: Math.max(w.fundOben.asErf, w.fundUnten.asErf),
+        durchmesser: [10, 12, 14, 16, 20],
+      },
+      {
+        id: "fund_laengs",
+        titel: "Fundament längs",
+        erklaerung:
+          "Durchlaufende Stäbe in Mauerlängsrichtung, oben und unten – mindestens 20 % der Querbewehrung.",
+        standard: { durchmesser: w.laengsDs, abstand: Math.round(w.fundOben.s * 1000) },
+        durchmesser: [10, 12, 14, 16],
+        ohneAbstand: true,
+      },
+    ];
+  },
+
   bewehrung(k: Kontext): Kennwerte {
     const projekt = k.projekt;
     const w = stuetzmauerLayout(projekt);
@@ -612,7 +669,7 @@ export const stuetzmauer: Bauteilmodul = {
     };
 
     /* ---- 1) Wandscheibe, erdseitige Vertikalbewehrung (Hauptbewehrung) ---- */
-    k.s.gruppe("Wandscheibe erdseitig");
+    k.s.gruppe("Wandscheibe erdseitig", "wand_erd");
     const nVert = imRaster(Math.max(0, w.l - 2 * w.cO), w.wandErd.s);
     const l0Erd = uebergreifung(w.wandErd.ds);
     k.s.stab(
@@ -627,7 +684,7 @@ export const stuetzmauer: Bauteilmodul = {
     );
 
     /* ---- 2) Wandscheibe, luftseitige Vertikalbewehrung ---- */
-    k.s.gruppe("Wandscheibe luftseitig");
+    k.s.gruppe("Wandscheibe luftseitig", "wand_luft");
     const nLuft = imRaster(Math.max(0, w.l - 2 * w.cO), w.wandLuft.s);
     k.s.stab(
       w.wandLuft.ds,
@@ -641,7 +698,7 @@ export const stuetzmauer: Bauteilmodul = {
     );
 
     /* ---- 3) Wandscheibe, Horizontalbewehrung beidseitig ---- */
-    k.s.gruppe("Wandscheibe horizontal");
+    k.s.gruppe("Wandscheibe horizontal", "wand_horiz");
     const hWand = laengsStab(w.wandHoriz.ds);
     const nHoriz = imRaster(Math.max(0, w.hw - 2 * w.cO), w.wandHoriz.s) * 2;
     k.s.stab(
@@ -656,7 +713,7 @@ export const stuetzmauer: Bauteilmodul = {
     );
 
     /* ---- 4) Fundament, Querbewehrung oben und unten ---- */
-    k.s.gruppe("Fundament quer");
+    k.s.gruppe("Fundament quer", "fund_quer");
     const auf = Math.max(0.08, Math.min(0.2, w.hf - w.cU - w.cO));
     const querLaenge = Math.max(0.2, w.bf - 2 * w.cU);
     for (const [lage, wahl, kurz] of [
@@ -676,7 +733,7 @@ export const stuetzmauer: Bauteilmodul = {
     }
 
     /* ---- 5) Fundament, Längsbewehrung oben und unten ---- */
-    k.s.gruppe("Fundament längs");
+    k.s.gruppe("Fundament längs", "fund_laengs");
     const lStab = laengsStab(w.laengsDs);
     k.s.stab(
       w.laengsDs,

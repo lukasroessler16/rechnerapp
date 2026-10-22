@@ -20,6 +20,7 @@ import {
   uebergreifung,
 } from "../normdaten";
 import { Ansicht, Kontext, Zeichenelement } from "./typen";
+import { Bewehrungsstelle, Stahlwahl } from "../stahlwahl";
 
 /* ------------------------------------------------------------------ */
 /* Bewehrungsbausteine                                                 */
@@ -33,54 +34,97 @@ export const stueckImRaster = (strecke: number, abstandMm: number) =>
 export const stegBreite = (dicke: number, cnomMm: number) =>
   Math.max(0.05, dicke - (2 * cnomMm) / 1000);
 
-/** Steckbügel (U-Form Ø8/25) entlang eines freien Randes */
+/**
+ * Kurzform des Verlegeabstands für Beschriftungen: 250 mm → "25".
+ * Krumme Werte behalten ihre Nachkommastelle (175 mm → "17,5").
+ */
+export const abstandKurz = (mm: number) =>
+  (mm / 10).toLocaleString("de-AT", { maximumFractionDigits: 1 });
+
+/**
+ * Steckbügel (U-Form) entlang eines freien Randes.
+ *
+ * Durchmesser und Abstand kommen aus der Stahlwahl der aktuellen Stelle;
+ * ohne Zutun des Kunden ist das die bisherige Vorgabe Ø8/25.
+ */
 export function randeinfassung(k: Kontext, strecke: number, wo: string, dicke: number) {
   const steg = stegBreite(dicke, k.cnom);
+  const w = k.stahl();
   k.s.stab(
-    8,
+    w.durchmesser,
     "buegel_u",
     [0.5, steg, 0.5],
-    stueckImRaster(strecke, 250),
-    `Randeinfassung ${wo} (Steckbügel Ø8/25)`,
+    stueckImRaster(strecke, w.abstand),
+    `Randeinfassung ${wo} (Steckbügel Ø${w.durchmesser}/${abstandKurz(w.abstand)})`,
     `Rand ${wo}`
   );
 }
 
 /** L-förmige Anschlusseisen entlang eines Randes (je Lage) */
 export function anschlusseisen(k: Kontext, strecke: number, wo: string, kurz: string) {
+  const w = k.stahl();
   k.s.stab(
-    10,
+    w.durchmesser,
     "winkel",
     [0.8, 0.8],
-    stueckImRaster(strecke, k.abst) * k.lagen,
-    `Anschlussbewehrung ${wo} (Ø10/${k.abst / 10})`,
-    kurz
-  );
-}
-
-/** gerade Übergreifungseisen (Bauteil läuft weiter / Stoß) */
-export function stossEisen(k: Kontext, strecke: number, wo: string, kurz: string) {
-  k.s.stab(
-    10,
-    "gerade",
-    [2 * uebergreifung(10)],
-    stueckImRaster(strecke, k.abst) * k.lagen,
-    `Übergreifungsstoß ${wo} (Ø10/${k.abst / 10})`,
+    stueckImRaster(strecke, w.abstand) * k.lagen,
+    `Anschlussbewehrung ${wo} (Ø${w.durchmesser}/${abstandKurz(w.abstand)})`,
     kurz
   );
 }
 
 /**
- * Wählt die Lagermatte und ermittelt die Stückzahl für eine Bewehrungsfläche.
+ * Gerade Übergreifungseisen (Bauteil läuft weiter / Stoß).
+ *
+ * Die Länge folgt dem gewählten Durchmesser: Ein dickerer Stab braucht eine
+ * längere Übergreifung (EC2 8.7), sonst wäre der Stoß nicht tragfähig.
+ */
+export function stossEisen(k: Kontext, strecke: number, wo: string, kurz: string) {
+  const w = k.stahl();
+  k.s.stab(
+    w.durchmesser,
+    "gerade",
+    [2 * uebergreifung(w.durchmesser)],
+    stueckImRaster(strecke, w.abstand) * k.lagen,
+    `Übergreifungsstoß ${wo} (Ø${w.durchmesser}/${abstandKurz(w.abstand)})`,
+    kurz
+  );
+}
+
+/** Was an einer Fläche tatsächlich verlegt wurde – für Plan und Kennwerte */
+export interface Flaechenwahl {
+  /** "Lagermatte" oder "Stabbewehrung" */
+  label: string;
+  /** "Q257A" bzw. "Ø10/15" */
+  bezeichnung: string;
+  /** vorhandene Bewehrung je Richtung [cm²/m] */
+  asVorhanden: number;
+  /** die gewählte Lagermatte, sofern mit Matten bewehrt wurde */
+  matte: Lagermatte | null;
+}
+
+/**
+ * Flächenbewehrung: Lagermatten oder Stabstahl, je nach Wahl des Kunden.
  *
  * @param asErf   erforderliche Bewehrung je Richtung [cm²/m]
  * @param flaeche zu bewehrende Nettofläche je Lage [m²]
+ * @param laenge  Länge der Fläche [m] – nur für Stabbewehrung nötig
+ * @param hoehe   Höhe/Breite der Fläche [m] – nur für Stabbewehrung nötig
  */
 export function flaechenbewehrung(
   k: Kontext,
-  opts: { asErf: number; flaeche: number; verwendung: string; kurz: string }
-): Lagermatte | null {
-  const vorgabe = k.projekt.parameter.matte;
+  opts: {
+    asErf: number;
+    flaeche: number;
+    verwendung: string;
+    kurz: string;
+    laenge?: number;
+    hoehe?: number;
+  }
+): Flaechenwahl {
+  const w = k.stahl();
+  if (w.art === "stab") return flaechenbewehrungStab(k, opts);
+  const vorgabe = w.matte ?? k.projekt.parameter.matte;
   const matte =
     vorgabe === "auto"
       ? matteWaehlen(opts.asErf)
@@ -88,20 +132,19 @@ export function flaechenbewehrung(
 
   if (!matte) {
     k.hinweise.push(
-      "⚠ Erforderliche Bewehrung übersteigt das Lagermatten-Programm – Stabstahlbewehrung durch Statiker festlegen."
+      "⚠ Erforderliche Bewehrung übersteigt das Lagermatten-Programm – auf Stabbewehrung umstellen oder durch Statiker festlegen lassen."
     );
-    return null;
+    return { label: "Lagermatte", bezeichnung: "–", asVorhanden: 0, matte: null };
   }
   if (matte.as < opts.asErf)
-    k.hinweise.push(
-      `⚠ Gewählte Matte ${matte.name} (${matte.as} cm²/m) liegt unter der Mindestbewehrung von ${opts.asErf.toFixed(
-        2
-      )} cm²/m – Auswahl prüfen!`
+    k.unterbewehrt(
+      `Gewählte Matte ${matte.name} (${zahl(matte.as)} cm²/m) liegt unter der ` +
+        `Mindestbewehrung von ${zahl(opts.asErf)} cm²/m – größere Matte oder „automatisch" wählen.`
     );
 
   // Nutzbare Mattenfläche: Liefermaß abzüglich Übergreifungsstoß. Der Stoß
   // geht in beide Richtungen ab, deshalb wirkt er doppelt auf die Menge.
-  const stoss = (k.projekt.parameter.mattenstoss ?? MATTEN_STOSS_STANDARD) / 1000;
+  const stoss = (w.stoss ?? k.projekt.parameter.mattenstoss ?? MATTEN_STOSS_STANDARD) / 1000;
   const effektiv = (matte.laenge - stoss) * (matte.breite - stoss);
   const bedarf = opts.flaeche * k.lagen * VERSCHNITT_FAKTOR;
   const anzahl = Math.max(1, Math.ceil(bedarf / effektiv));
@@ -114,8 +157,142 @@ export function flaechenbewehrung(
     opts.verwendung,
     opts.kurz
   );
-  return matte;
+  return { label: "Lagermatte", bezeichnung: matte.name, asVorhanden: matte.as, matte };
 }
+
+/**
+ * Flächenbewehrung aus Stabstahl statt aus Lagermatten.
+ *
+ * WOZU: Matten sind der Normalfall, aber nicht immer der richtige. Bei hohen
+ * Bewehrungsgraden reicht das Mattenprogramm nicht, bei vielen Öffnungen ist
+ * der Verschnitt hoch, und manche Betriebe verlegen grundsätzlich Stäbe.
+ *
+ * GERECHNET WIRD: Der Kunde gibt Durchmesser und Abstand vor, die Stückzahl
+ * folgt aus dem Bauteilmaß – in beiden Richtungen, je Lage. Ob die so
+ * erreichte Bewehrung die Mindestbewehrung deckt, prüft die Funktion und
+ * meldet es; sie rechnet den Abstand NICHT stillschweigend herunter, sonst
+ * stünde am Ende etwas anderes auf dem Plan als der Kunde gewählt hat.
+ */
+function flaechenbewehrungStab(
+  k: Kontext,
+  opts: {
+    asErf: number;
+    flaeche: number;
+    verwendung: string;
+    kurz: string;
+    laenge?: number;
+    hoehe?: number;
+  }
+): Flaechenwahl {
+  const w = k.stahl();
+  const s = w.abstand / 1000; // Abstand [m]
+  // vorhandene Bewehrung je Richtung [cm²/m]
+  const asVorh = stabflaeche(w.durchmesser) / s;
+
+  if (asVorh < opts.asErf - 0.005)
+    k.unterbewehrt(
+      `Gewählte Stabbewehrung Ø${w.durchmesser}/${abstandKurz(w.abstand)} ergibt ` +
+        `${zahl(asVorh)} cm²/m und liegt unter der Mindestbewehrung von ` +
+        `${zahl(opts.asErf)} cm²/m – engeren Abstand oder größeren Durchmesser wählen.`
+    );
+
+  // Ohne Maße lässt sich die Stückzahl nicht ermitteln; das wäre ein Fehler
+  // im Bauteilmodul und darf nicht stillschweigend eine leere Fläche ergeben.
+  const laenge = opts.laenge ?? Math.sqrt(Math.max(0, opts.flaeche));
+  const hoehe = opts.hoehe ?? Math.sqrt(Math.max(0, opts.flaeche));
+
+  // Stäbe der einen Richtung liegen über die Länge verteilt und sind so lang
+  // wie die Höhe – und umgekehrt. Der Zuschlag deckt Verankerung am Rand.
+  const stossLaenge = uebergreifung(w.durchmesser);
+  k.s.stab(
+    w.durchmesser,
+    "gerade",
+    [hoehe + 2 * stossLaenge],
+    stueckImRaster(laenge, w.abstand) * k.lagen,
+    `${opts.verwendung} – Stäbe längs (Ø${w.durchmesser}/${abstandKurz(w.abstand)})`,
+    `${opts.kurz} längs`
+  );
+  k.s.stab(
+    w.durchmesser,
+    "gerade",
+    [laenge + 2 * stossLaenge],
+    stueckImRaster(hoehe, w.abstand) * k.lagen,
+    `${opts.verwendung} – Stäbe quer (Ø${w.durchmesser}/${abstandKurz(w.abstand)})`,
+    `${opts.kurz} quer`
+  );
+
+  return {
+    label: "Stabbewehrung",
+    bezeichnung: `Ø${w.durchmesser}/${abstandKurz(w.abstand)}`,
+    asVorhanden: Math.round(asVorh * 100) / 100,
+    matte: null,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Bewehrungsstellen: die Vorgaben, die der Kunde ändern darf          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Vorgaben, die mehrere Bauteile teilen. Sie stehen hier und nicht in den
+ * Modulen, damit „Anschlusseisen sind Ø10 im gewählten Raster" eine Aussage
+ * bleibt und nicht acht leicht verschiedene.
+ */
+export const STELLE = {
+  /** Fläche aus Lagermatten (Standard) oder Stabstahl */
+  flaeche: (projekt: Projekt, titel: string, erklaerung: string, asErf?: number): Bewehrungsstelle => ({
+    id: "flaeche",
+    titel,
+    erklaerung,
+    flaeche: true,
+    asErf,
+    standard: {
+      art: "matte",
+      matte: projekt.parameter.matte,
+      stoss: projekt.parameter.mattenstoss,
+      // Vorgabe für den Fall, dass auf Stabbewehrung umgestellt wird
+      durchmesser: 10,
+      abstand: 150,
+    },
+  }),
+
+  /** Anschluss-, Stoß- und Eckeisen: Ø10 im gewählten Raster */
+  anschluss: (
+    projekt: Projekt,
+    id: string,
+    titel: string,
+    erklaerung: string
+  ): Bewehrungsstelle => ({
+    id,
+    titel,
+    erklaerung,
+    standard: { durchmesser: 10, abstand: projekt.parameter.stababstand },
+    durchmesser: [8, 10, 12, 14],
+  }),
+
+  /** Freier Rand: Steckbügel Ø8/25 */
+  rand: (id: string, titel: string, erklaerung: string): Bewehrungsstelle => ({
+    id,
+    titel,
+    erklaerung,
+    standard: { durchmesser: 8, abstand: 250 },
+    durchmesser: [8, 10, 12],
+  }),
+
+  /**
+   * Zulagen rund um eine Öffnung: Ø12 gerade.
+   * Ohne Abstand – wie viele Zulagen es gibt, bestimmt die Öffnung
+   * (Sturz, Brüstung, Laibung, Schrägstäbe), nicht ein Raster.
+   */
+  oeffnung: (id: string, titel: string, erklaerung: string): Bewehrungsstelle => ({
+    id,
+    titel,
+    erklaerung,
+    standard: { durchmesser: 12, abstand: 150 },
+    durchmesser: [10, 12, 14, 16],
+    ohneAbstand: true,
+  }),
+};
 
 /* ------------------------------------------------------------------ */
 /* Geometrie von Stabbauteilen (Stütze, Träger, Fundamentbalken)       */
@@ -248,6 +425,30 @@ export function stabRaster(
 /** Stückzahl in einem gleichmäßigen Raster über eine Strecke (mindestens 2) */
 export const imRaster = (strecke: number, abstand: number) =>
   Math.max(2, Math.floor(strecke / abstand) + 1);
+
+/**
+ * Wie stabRaster(), aber mit den Vorgaben des Kunden.
+ *
+ * Er muss nicht beides angeben: Wer nur den Durchmesser wählt, bekommt den
+ * weitesten Abstand, der damit noch reicht; wer nur den Abstand wählt, den
+ * dünnsten Stab, der damit noch reicht. Sind beide gesetzt, gilt beides –
+ * dann kann die Bewehrung auch zu gering ausfallen, und das Bauteilmodul
+ * meldet es. So kommt nie etwas heraus, das der Kunde nicht gewählt hat.
+ */
+export function stabRasterMitWahl(
+  asErf: number,
+  durchmesser: number[],
+  abstaendeCm: number[],
+  wahl: Partial<Stahlwahl> | undefined
+): Stabraster {
+  const ds = wahl?.durchmesser;
+  const sCm = wahl?.abstand ? wahl.abstand / 10 : undefined;
+  if (ds && sCm)
+    return { ds, s: sCm / 100, as: Math.round(((stabflaeche(ds) * 100) / sCm) * 100) / 100 };
+  if (ds) return stabRaster(asErf, [ds], abstaendeCm);
+  if (sCm) return stabRaster(asErf, durchmesser, [sCm]);
+  return stabRaster(asErf, durchmesser, abstaendeCm);
+}
 
 /* ------------------------------------------------------------------ */
 /* Vereinfachte Biegebemessung (nur für Bauteile mit bekannter Last)   */
