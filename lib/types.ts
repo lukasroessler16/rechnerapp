@@ -172,6 +172,17 @@ export interface Position {
   segmente?: number[];
   /** Biegerollendurchmesser [mm] (nur bei gebogenen Stäben) */
   biegerolle?: number;
+  /**
+   * Winkel der Form [°] – der Wert, in dem der Stab tatsächlich liegt bzw.
+   * gebogen wird: 90° bei Winkeln und Bügeln, 45° beim Schrägstab.
+   *
+   * WOZU: Auf Stück- und Biegeliste wird die Form gezeichnet. Ein
+   * Schrägstab, der im Seitenverhältnis seines Kästchens gezeichnet wird,
+   * sieht je nach Spaltenbreite wie 10° oder 30° aus – gebogen und verlegt
+   * wird er aber unter 45°. Eine Skizze, die einen anderen Winkel zeigt als
+   * den, der gebaut wird, ist schlimmer als keine.
+   */
+  winkel?: number;
   /** Schnittlänge je Stück [m] – bei Matten: Mattenlänge */
   laenge: number;
   /** Mattenbreite [m] (nur bei Matten) */

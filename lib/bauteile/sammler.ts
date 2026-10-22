@@ -25,6 +25,20 @@ export const cm = (m: number) => Math.round(m * 100) / 100;
 /** Gruppe, solange ein Bauteilmodul nichts anderes sagt */
 export const STANDARD_GRUPPE = "Grundbewehrung";
 
+/**
+ * Winkel, den eine Biegeform üblicherweise hat [°].
+ *
+ * Er steht an der Position und wird so auf Stück- und Biegeliste gezeichnet.
+ * Ein Bauteilmodul kann davon abweichen (z. B. ein Schrägstab unter 60°),
+ * dann gibt es den Winkel beim Sammeln mit an.
+ */
+const REGELWINKEL: Partial<Record<Biegeform, number>> = {
+  winkel: 90,
+  buegel_u: 90,
+  buegel_rechteck: 90,
+  schraegstab: 45,
+};
+
 export class Sammler {
   positionen: Omit<Position, "pos" | "gruppeNr" | "nr">[] = [];
 
@@ -88,7 +102,13 @@ export class Sammler {
     segmente: number[],
     stueck: number,
     verwendung: string,
-    kurz: string
+    kurz: string,
+    /**
+     * Winkel der Form [°], falls er vom Regelfall abweicht. Ohne Angabe
+     * gilt, was die Form üblicherweise bedeutet: 90° bei Winkeln und
+     * Bügeln, 45° beim Schrägstab, nichts beim geraden Stab.
+     */
+    winkel?: number
   ) {
     const laenge = cm(segmente.reduce((a, b) => a + b, 0));
     const seg = segmente.map(cm);
@@ -103,6 +123,7 @@ export class Sammler {
       p.form === form &&
       p.laenge === laenge &&
       JSON.stringify(p.segmente) === JSON.stringify(seg) &&
+      p.winkel === (winkel ?? REGELWINKEL[form]) &&
       p.verwendung === verwendung;
     const vorhanden = this.positionen.find(key);
     if (vorhanden) {
@@ -122,6 +143,7 @@ export class Sammler {
       segmente: seg,
       biegerolle:
         form === "gerade" || form === "schraegstab" ? undefined : biegerolle(d),
+      winkel: winkel ?? REGELWINKEL[form],
       laenge,
       stueck,
       gewichtJeStueck,

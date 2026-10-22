@@ -19,7 +19,7 @@
  * Aufruf: npx tsx scripts/test-layout.ts
  */
 
-import { Textkasten, endeMitschrift, starteMitschrift } from "../lib/pdf/helpers";
+import { Textkasten, endeMitschrift, schraegLinie, starteMitschrift } from "../lib/pdf/helpers";
 import { MATTEN_STOSS_STANDARD } from "../lib/normdaten";
 import { berechneBewehrung } from "../lib/bewehrung";
 import { erzeugeBauplan } from "../lib/pdf/bauplan";
@@ -262,7 +262,47 @@ async function pruefe(
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Schräge Stäbe liegen im angeschriebenen Winkel                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Vorher wurde ein Schrägstab von Ecke zu Ecke seines Kästchens gezeichnet.
+ * Dadurch zeigte dieselbe Position in der Stückliste rund 12° und in der
+ * Biegeliste rund 8° – eingebaut wird sie unter 45°. Wer danach biegt,
+ * biegt falsch. Diese Prüfung hält fest, dass der gezeichnete Winkel vom
+ * Kästchen unabhängig ist.
+ */
+function pruefeWinkel() {
+  // Kästchen der Stückliste, der Biegeliste und zwei Grenzformate
+  const kaesten = [
+    { b: 28, h: 10 },
+    { b: 44, h: 11 },
+    { b: 60, h: 8 },
+    { b: 20, h: 20 },
+  ];
+  for (const grad of [30, 45, 60, 90]) {
+    for (const kasten of kaesten) {
+      const l = schraegLinie(grad, 0, 0, kasten.b, kasten.h);
+      const ist = (Math.atan2(l.y2 - l.y1, l.x2 - l.x1) * 180) / Math.PI;
+      if (Math.abs(ist - grad) > 0.01) {
+        console.log(
+          `\n✗ Schrägstab: ${grad}° angeschrieben, ${ist.toFixed(1)}° gezeichnet ` +
+            `(Kästchen ${kasten.b} × ${kasten.h} mm)`
+        );
+        gefunden++;
+      }
+      // und die Linie muss im Kästchen bleiben
+      if (l.x1 < -0.01 || l.x2 > kasten.b + 0.01 || l.y1 < -0.01 || l.y2 > kasten.h + 0.01) {
+        console.log(`\n✗ Schrägstab ${grad}° ragt aus dem Kästchen ${kasten.b} × ${kasten.h} mm`);
+        gefunden++;
+      }
+    }
+  }
+}
+
 async function main() {
+  pruefeWinkel();
 
   for (const fall of faelle) {
     const e = berechneBewehrung(fall.projekt);
@@ -313,7 +353,7 @@ async function main() {
     )
   );
 
-  console.log(`\n${geprueft} Dokumente geprüft.`);
+  console.log(`\n${geprueft} Dokumente geprüft, schräge Stäbe im angeschriebenen Winkel.`);
   if (gefunden) {
     console.log(`LAYOUTPRÜFUNG FEHLGESCHLAGEN: ${gefunden} Überdeckung(en).`);
     process.exit(1);

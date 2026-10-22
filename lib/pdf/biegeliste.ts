@@ -105,7 +105,17 @@ export async function erzeugeBiegeliste(
     z.text(p.nr, spalten[0].x + 1, y - 6, 8, { fett: true });
     z.text(String(p.durchmesser), spalten[1].x + 1, y - 6, 8);
     formSkizze(z, p, spalten[2].x + 1, y - ZEILE_H + 3, spalten[2].b - 2, ZEILE_H - 5);
-    spaltenText(z, FORM_NAME[p.form ?? "gerade"], spalten[3].x + 1, y - 6, spalten[3].b - 2, 7, {
+    /*
+     * Formbezeichnung mit Winkel, wo er nicht selbstverständlich ist: Ein
+     * Bügel ist immer 90° gebogen, ein Schrägstab aber unter 45° (oder dem,
+     * was das Bauteilmodul angibt) eingebaut. Auf einer Biegeliste ist der
+     * Winkel eine Arbeitsanweisung.
+     */
+    const formText =
+      p.winkel !== undefined && p.winkel !== 90
+        ? `${FORM_NAME[p.form ?? "gerade"]} ${p.winkel}°`
+        : FORM_NAME[p.form ?? "gerade"];
+    spaltenText(z, formText, spalten[3].x + 1, y - 6, spalten[3].b - 2, 7, {
       einzeilig: true,
     });
     z.text(p.biegerolle ? String(p.biegerolle) : "—", spalten[4].x + 1, y - 6, 8);

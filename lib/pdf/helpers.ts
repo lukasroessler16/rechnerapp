@@ -473,6 +473,42 @@ export async function listenKopf(
  * Zeichnet die Biegeform einer Position in eine Zellbox (x, y, b, h in mm).
  * Schenkelmaße werden klein angeschrieben.
  */
+/**
+ * Endpunkte eines schräg eingebauten Stabes in seinem Skizzenkästchen.
+ *
+ * Der WINKEL ist maßgebend, nicht das Kästchen: Die Linie wird so lang
+ * gezeichnet, wie sie unter diesem Winkel in das Kästchen passt – aber
+ * niemals in einem anderen Winkel. Dieselbe Position sieht dadurch auf der
+ * Stückliste und auf der Biegeliste gleich aus, obwohl die Spalten
+ * verschieden breit sind. Gebaut wird nach der Gradzahl; eine Skizze, die
+ * etwas anderes zeigt, führt in die Irre.
+ *
+ * Unten im Kästchen bleibt Platz für die Gradzahl, rechts für das Maß.
+ */
+export function schraegLinie(
+  grad: number,
+  x: number,
+  y: number,
+  b: number,
+  h: number
+): { x1: number; y1: number; x2: number; y2: number } {
+  const bogen = (grad * Math.PI) / 180;
+  const zahlH = 2.8;
+  const breiteFrei = Math.max(2, b - 14);
+  const hoeheFrei = Math.max(2, h - 3 - zahlH);
+  const cos = Math.abs(Math.cos(bogen));
+  const sin = Math.abs(Math.sin(bogen));
+  const laenge = Math.min(
+    cos > 0.01 ? breiteFrei / cos : breiteFrei,
+    sin > 0.01 ? hoeheFrei / sin : hoeheFrei
+  );
+  const dx = (laenge * Math.cos(bogen)) / 2;
+  const dy = (laenge * Math.sin(bogen)) / 2;
+  const mx = x + 4 + breiteFrei / 2;
+  const my = y + zahlH + (h - zahlH) / 2;
+  return { x1: mx - dx, y1: my - dy, x2: mx + dx, y2: my + dy };
+}
+
 export function formSkizze(z: Zeichner, p: Position, x: number, y: number, b: number, h: number) {
   const cx = x + b / 2;
   const cy = y + h / 2;
@@ -496,8 +532,26 @@ export function formSkizze(z: Zeichner, p: Position, x: number, y: number, b: nu
       break;
     }
     case "schraegstab": {
-      z.linie(x + 5, y + 3, x + b - 5, y + h - 3, 0.9, ORANGE);
-      z.text(de(s[0]), cx, cy + 2, 6, { ausrichtung: "mitte" });
+      /*
+       * Unter dem WIRKLICHEN Winkel zeichnen, nicht von Ecke zu Ecke des
+       * Kästchens: Sonst zeigt dieselbe Position in der Stückliste 12° und
+       * in der Biegeliste 8°, obwohl sie unter 45° eingebaut wird. Die
+       * Länge der Linie ist schematisch (das Maß steht daneben), der
+       * Winkel ist es nicht.
+       */
+      const grad = p.winkel ?? 45;
+      const { x1, y1, x2, y2 } = schraegLinie(grad, x, y, b, h);
+      z.linie(x1, y1, x2, y2, 0.9, ORANGE);
+      const mx = (x1 + x2) / 2;
+      const my = (y1 + y2) / 2;
+      const dx = (x2 - x1) / 2;
+      const dy = (y2 - y1) / 2;
+      // Winkelschenkel und Gradzahl: Der Winkel ist eine Angabe für die
+      // Baustelle, keine Zeichenlaune. Die Gradzahl steht UNTER dem
+      // waagrechten Schenkel – im Winkel selbst läge sie auf dem Stab.
+      z.linie(mx - dx, my - dy, mx - dx + 4, my - dy, 0.25, GRAU);
+      z.text(`${grad}°`, mx - dx + 0.6, my - dy - 2.3, 5, { farbe: GRAU });
+      z.text(de(s[0]), x + b - 9, my - 1, 6);
       break;
     }
     case "winkel": {
