@@ -11,8 +11,9 @@
     "test:berechnung": "tsx scripts/test-berechnung.ts",
     "test:betrieb": "tsx scripts/test-betrieb.ts",
     "test:pdf": "tsx scripts/test-pdf.ts",
+    "test:layout": "tsx scripts/test-layout.ts",
     "test:e2e": "node scripts/test-e2e.mjs",
-    "test": "npm run typecheck && npm run lint && npm run test:berechnung && npm run test:betrieb && npm run test:pdf",
+    "test": "npm run typecheck && npm run lint && npm run test:berechnung && npm run test:betrieb && npm run test:pdf && npm run test:layout",
     "pruefen": "npm run test && npm run build"
   },
   "dependencies": {

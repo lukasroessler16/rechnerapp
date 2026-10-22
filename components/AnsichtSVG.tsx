@@ -31,6 +31,12 @@ const ABSTAND = 60; // Abstand zwischen zwei Ansichten
  */
 const RAND = { links: 84, rechts: 34, oben: 58, unten: 100 };
 
+/**
+ * Zusätzlicher Platz, sobald eine zweite Maßkette mit dem Gesamtmaß
+ * hinzukommt (sobald eine Öffnung die innere Kette unterteilt).
+ */
+const RAND_GESAMT = { links: 38, unten: 46 };
+
 /** Inhaltsbreite, auf die der Beschriftungsmaßstab k = 1 abgestimmt ist */
 const BEZUGSBREITE = 420;
 
@@ -85,6 +91,12 @@ function AnsichtGruppe({
   const H = ansicht.hoehe * m;
   /** Hilfsfunktion: feste Maße auf den Beschriftungsmaßstab bringen */
   const p = (wert: number) => wert * k;
+
+  // Unterteilte Kette → zusätzlich das Gesamtmaß als äußere Kette
+  const punkteX = stuetzpunkte(ansicht.massketteX ?? []);
+  const punkteY = stuetzpunkte(ansicht.massketteY ?? []);
+  const gesamtX = punkteX.length > 2;
+  const gesamtY = punkteY.length > 2;
 
   /**
    * Versatzreihe je Maßzahl: 0 = auf der Maßkette. Ist eine Zahl breiter als
@@ -202,7 +214,7 @@ function AnsichtGruppe({
 
   /* ---------- Maßketten ---------- */
   const massH = () => {
-    const punkte = stuetzpunkte(ansicht.massketteX ?? []);
+    const punkte = punkteX;
     if (punkte.length < 2) return null;
     const y = oy + p(40);
     return (
@@ -228,18 +240,55 @@ function AnsichtGruppe({
               textAnchor="middle"
               fontSize={p(15)}
               fill={FARBE.mass}
-              stroke="none"
+              stroke="#fff"
+              strokeWidth={p(3.5)}
+              paintOrder="stroke"
             >
               {f(b)}
             </text>
           );
         })}
+        {/*
+          Gesamtmaß als zweite, äußere Kette: Sobald eine Öffnung die Kette
+          unterteilt, stünden sonst nur Teilmaße da – die Gesamtlänge müsste
+          man addieren. Die Maßzahl steht UNTER der Linie, damit sie den
+          ausgewichenen Teilmaßen nicht in die Quere kommt.
+        */}
+        {gesamtX && (
+          <g>
+            <line
+              x1={X(punkte[0])}
+              y1={oy + p(78)}
+              x2={X(punkte[punkte.length - 1])}
+              y2={oy + p(78)}
+            />
+            {[punkte[0], punkte[punkte.length - 1]].map((x) => (
+              <g key={x}>
+                <line x1={X(x)} y1={oy + p(72)} x2={X(x)} y2={oy + p(84)} />
+                <line x1={X(x) - p(5)} y1={oy + p(83)} x2={X(x) + p(5)} y2={oy + p(73)} />
+              </g>
+            ))}
+            <text
+              x={X((punkte[0] + punkte[punkte.length - 1]) / 2)}
+              y={oy + p(95)}
+              textAnchor="middle"
+              fontSize={p(16)}
+              fontWeight={600}
+              fill={FARBE.mass}
+              stroke="#fff"
+              strokeWidth={p(3.5)}
+              paintOrder="stroke"
+            >
+              {f(punkte[punkte.length - 1] - punkte[0])}
+            </text>
+          </g>
+        )}
       </g>
     );
   };
 
   const massV = () => {
-    const punkte = stuetzpunkte(ansicht.massketteY ?? []);
+    const punkte = punkteY;
     if (punkte.length < 2) return null;
     const x = ox - p(46);
     return (
@@ -255,7 +304,7 @@ function AnsichtGruppe({
           const b = punkte[i + 1] - y;
           const my = Y(y + b / 2);
           const reihe = versatz(alle.map((v, j) => punkte[j + 1] - v))[i];
-          const mx = x + (reihe === 0 ? -p(9) : reihe === 1 ? p(9) : -p(27));
+          const mx = x + (reihe === 0 ? -p(9) : reihe === 1 ? p(14) : -p(27));
           return (
             <text
               key={i}
@@ -264,27 +313,67 @@ function AnsichtGruppe({
               textAnchor="middle"
               fontSize={p(15)}
               fill={FARBE.mass}
-              stroke="none"
+              stroke="#fff"
+              strokeWidth={p(3.5)}
+              paintOrder="stroke"
               transform={`rotate(-90 ${mx} ${my})`}
             >
               {f(b)}
             </text>
           );
         })}
+        {/* Gesamthöhe als zweite Kette – gleiche Überlegung wie waagrecht */}
+        {gesamtY && (
+          <g>
+            <line
+              x1={ox - p(84)}
+              y1={Y(punkte[0])}
+              x2={ox - p(84)}
+              y2={Y(punkte[punkte.length - 1])}
+            />
+            {[punkte[0], punkte[punkte.length - 1]].map((y) => (
+              <g key={y}>
+                <line x1={ox - p(90)} y1={Y(y)} x2={ox - p(78)} y2={Y(y)} />
+                <line
+                  x1={ox - p(89)}
+                  y1={Y(y) + p(5)}
+                  x2={ox - p(79)}
+                  y2={Y(y) - p(5)}
+                />
+              </g>
+            ))}
+            <text
+              x={ox - p(94)}
+              y={Y((punkte[0] + punkte[punkte.length - 1]) / 2)}
+              textAnchor="middle"
+              fontSize={p(16)}
+              fontWeight={600}
+              fill={FARBE.mass}
+              stroke="#fff"
+              strokeWidth={p(3.5)}
+              paintOrder="stroke"
+              transform={`rotate(-90 ${ox - p(94)} ${Y((punkte[0] + punkte[punkte.length - 1]) / 2)})`}
+            >
+              {f(punkte[punkte.length - 1] - punkte[0])}
+            </text>
+          </g>
+        )}
       </g>
     );
   };
 
   /* ---------- Randbeschriftungen ---------- */
+  // Sie stehen außerhalb der Maßketten; wie weit außen, hängt davon ab, ob
+  // es dort eine zweite Kette gibt.
   const rand = (ansicht.randtexte ?? []).filter((r) => r.text);
   const randPos = (seite: string) => {
     switch (seite) {
       case "unten":
-        return { x: ox + B / 2, y: oy + p(64), rot: false };
+        return { x: ox + B / 2, y: oy + p(gesamtX ? 112 : 64), rot: false };
       case "oben":
         return { x: ox + B / 2, y: oy - H - p(14), rot: false };
       case "links":
-        return { x: ox - p(76), y: oy - H / 2, rot: true };
+        return { x: ox - p(gesamtY ? 110 : 76), y: oy - H / 2, rot: true };
       default:
         return { x: ox + B + p(20), y: oy - H / 2, rot: true };
     }
@@ -315,7 +404,13 @@ function AnsichtGruppe({
         {ansicht.eigenerMassstab ? `${ansicht.titel} (vergrößert)` : ansicht.titel}
       </text>
       {ansicht.fuss && (
-        <text x={ox + B / 2} y={oy + p(92)} textAnchor="middle" fontSize={p(13)} fill={FARBE.mass}>
+        <text
+          x={ox + B / 2}
+          y={oy + p(gesamtX ? 130 : 92)}
+          textAnchor="middle"
+          fontSize={p(13)}
+          fill={FARBE.mass}
+        >
           {ansicht.fuss}
         </text>
       )}
@@ -362,7 +457,12 @@ export default function AnsichtSVG({ ansichten }: { ansichten: Ansicht[] }) {
 
   const bloecke = ansichten.map((a) => {
     const m = faktor(a);
-    return { a, m, breite: a.breite * m, hoehe: a.hoehe * m };
+    // Eine unterteilte Kette bekommt zusätzlich das Gesamtmaß – dafür braucht
+    // die betreffende Seite mehr Rand. Je Ansicht gerechnet, damit ein
+    // Querschnitt ohne Öffnungen nicht unnötig Platz verschenkt.
+    const zusatzL = stuetzpunkte(a.massketteY ?? []).length > 2 ? RAND_GESAMT.links : 0;
+    const zusatzU = stuetzpunkte(a.massketteX ?? []).length > 2 ? RAND_GESAMT.unten : 0;
+    return { a, m, breite: a.breite * m, hoehe: a.hoehe * m, zusatzL, zusatzU };
   });
 
   /* ---- ein- oder zweizeilig? ---- */
@@ -397,13 +497,18 @@ export default function AnsichtSVG({ ansichten }: { ansichten: Ansicht[] }) {
   const masse = reihen.map((reihe) => ({
     reihe,
     breite:
-      reihe.reduce((sum, b) => sum + b.breite + rand.links + rand.rechts, 0) +
-      luft * (reihe.length - 1),
+      reihe.reduce(
+        (sum, b) => sum + b.breite + rand.links + b.zusatzL * k + rand.rechts,
+        0
+      ) + luft * (reihe.length - 1),
     inhaltH: Math.max(...reihe.map((b) => b.hoehe)),
+    // Der untere Rand der Reihe richtet sich nach der Ansicht mit dem
+    // größten Bedarf; sonst ragte eine zweite Maßkette in die nächste Reihe.
+    randU: rand.unten + Math.max(...reihe.map((b) => b.zusatzU)) * k,
   }));
   const gesamtB = Math.max(...masse.map((r) => r.breite));
   const gesamtH =
-    masse.reduce((sum, r) => sum + r.inhaltH + rand.oben + rand.unten, 0) +
+    masse.reduce((sum, r) => sum + r.inhaltH + rand.oben + r.randU, 0) +
     luft * (masse.length - 1);
 
   /* ---- Blöcke platzieren ---- */
@@ -415,13 +520,13 @@ export default function AnsichtSVG({ ansichten }: { ansichten: Ansicht[] }) {
       platziert.push({
         a: b.a,
         m: b.m,
-        ox: cursor + rand.links,
+        ox: cursor + rand.links + b.zusatzL * k,
         // Unterkante der Ansicht; kleinere Ansichten hängen mittig in der Reihe
         oy: reihenOben + rand.oben + r.inhaltH - (r.inhaltH - b.hoehe) / 2,
       });
-      cursor += b.breite + rand.links + rand.rechts + luft;
+      cursor += b.breite + rand.links + b.zusatzL * k + rand.rechts + luft;
     }
-    reihenOben += r.inhaltH + rand.oben + rand.unten + luft;
+    reihenOben += r.inhaltH + rand.oben + r.randU + luft;
   }
 
   return (

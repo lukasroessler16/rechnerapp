@@ -16,6 +16,7 @@ import {
   mm,
   de,
   formSkizze,
+  spaltenText,
   GRAU,
   HELLGRAU,
 } from "./helpers";
@@ -104,13 +105,25 @@ export async function erzeugeBiegeliste(
     z.text(p.nr, spalten[0].x + 1, y - 6, 8, { fett: true });
     z.text(String(p.durchmesser), spalten[1].x + 1, y - 6, 8);
     formSkizze(z, p, spalten[2].x + 1, y - ZEILE_H + 3, spalten[2].b - 2, ZEILE_H - 5);
-    z.text(FORM_NAME[p.form ?? "gerade"], spalten[3].x + 1, y - 6, 7);
+    spaltenText(z, FORM_NAME[p.form ?? "gerade"], spalten[3].x + 1, y - 6, spalten[3].b - 2, 7, {
+      einzeilig: true,
+    });
     z.text(p.biegerolle ? String(p.biegerolle) : "—", spalten[4].x + 1, y - 6, 8);
     z.text(de(p.laenge), spalten[5].x + 1, y - 6, 8);
     z.text(String(p.stueck), spalten[6].x + 1, y - 6, 8);
     z.text(de(p.gewichtJeStueck), spalten[7].x + 1, y - 6, 8);
     z.text(de(p.gewichtGesamt, 1), spalten[8].x + 1, y - 6, 8, { fett: true });
-    z.text(p.verwendung, spalten[2].x + 1, y - ZEILE_H + 2.5, 5.5, { farbe: GRAU });
+    // Der Verwendungstext läuft unter der Skizze quer durch mehrere Spalten;
+    // begrenzt wird er am rechten Rand der Gewichtsspalte.
+    spaltenText(
+      z,
+      p.verwendung,
+      spalten[2].x + 1,
+      y - ZEILE_H + 2.5,
+      spalten[8].x + spalten[8].b - spalten[2].x - 2,
+      5.5,
+      { farbe: GRAU, mindest: 4.5, einzeilig: true }
+    );
     z.linie(15, y - ZEILE_H + 1, 195, y - ZEILE_H + 1, 0.2, GRAU);
     y -= ZEILE_H;
   }

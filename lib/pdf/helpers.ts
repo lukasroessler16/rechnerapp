@@ -72,8 +72,53 @@ export async function ladeFonts(doc: PDFDocument): Promise<Fonts> {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Mitschrift für die Layoutprüfung                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ein gezeichneter Text mit seinem Platzbedarf [mm].
+ *
+ * WOZU: Ob sich auf einem Plan zwei Beschriftungen überdecken, sieht man
+ * im PDF erst, wenn man genau hinschaut – und auf einem Bauplan, den
+ * jemand auf der Baustelle liest, ist eine überschriebene Maßzahl ein
+ * echter Schaden. Die Mitschrift macht das prüfbar: `scripts/test-layout.ts`
+ * zeichnet jedes Bauteil samt Grenzfällen und meldet jede Überdeckung,
+ * ohne dass jemand Blätter vergleichen muss.
+ */
+export interface Textkasten {
+  text: string;
+  /** laufende Nummer des Zeichners = Seite */
+  blatt: number;
+  links: number;
+  rechts: number;
+  unten: number;
+  oben: number;
+  groesse: number;
+  drehung: number;
+}
+
+let mitschrift: Textkasten[] | null = null;
+
+/** Mitschrift einschalten; liefert die Liste, die sich dabei füllt */
+export function starteMitschrift(): Textkasten[] {
+  mitschrift = [];
+  return mitschrift;
+}
+
+/** Mitschrift wieder abschalten (sonst wächst sie unbegrenzt weiter) */
+export function endeMitschrift(): void {
+  mitschrift = null;
+}
+
+/** fortlaufende Nummer je Zeichner – in mehrseitigen Listen die Seite */
+let blattZaehler = 0;
+
 /** Zeichen-Wrapper: mm-Koordinaten, Ursprung links unten */
 export class Zeichner {
+  /** Nummer dieses Zeichners; Texte verschiedener Blätter überdecken sich nie */
+  readonly blatt = ++blattZaehler;
+
   constructor(
     public seite: PDFPage,
     public fonts: Fonts
@@ -149,7 +194,126 @@ export class Zeichner {
       color: opts.farbe ?? SCHWARZ,
       rotate: opts.drehung ? degrees(opts.drehung) : undefined,
     });
+
+    if (mitschrift && txt.trim()) {
+      // Kasten um den Text [mm]. Die Höhe ist die Schriftgröße in mm; der
+      // Bezugspunkt ist die Grundlinie, Unterlängen liegen darunter.
+      const b = (breite * 25.4) / 72;
+      const h = (groesse * 25.4) / 72;
+      const links = (px * 25.4) / 72;
+      const unten = y - h * 0.22;
+      mitschrift.push(
+        opts.drehung
+          ? // 90° gedreht: Der Text läuft nach oben, die Schrifthöhe nach links.
+            {
+              text: txt,
+              blatt: this.blatt,
+              links: x - h * 0.78,
+              rechts: x + h * 0.22,
+              unten: y,
+              oben: y + b,
+              groesse,
+              drehung: opts.drehung,
+            }
+          : {
+              text: txt,
+              blatt: this.blatt,
+              links,
+              rechts: links + b,
+              unten,
+              oben: unten + h,
+              groesse,
+              drehung: 0,
+            }
+      );
+    }
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Text, der in seine Spalte passt                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Setzt einen Text so, dass er die Spaltenbreite nicht überschreitet.
+ *
+ * WOZU: In einer Tabelle ist die Spaltenbreite fest, der Inhalt nicht. Ein
+ * Rechteckbügel liefert "0,23 / 0,23 / 0,23 / 0,23 / 0,16", ein Kunde einen
+ * Firmennamen mit vier Wörtern. Läuft so etwas in die Nachbarspalte, steht
+ * dort eine Stückzahl halb unter einer Maßangabe – und die Liste, nach der
+ * bestellt wird, ist falsch lesbar.
+ *
+ * Der Reihe nach: erst kleiner setzen (bis `mindest`), dann an einem
+ * Trennzeichen umbrechen, zuletzt kürzen. Gekürzt wird nur, was sonst
+ * gar nicht darstellbar wäre.
+ *
+ * @param zeilenAbstand Abstand der zweiten Zeile [mm]
+ * @returns Zahl der gesetzten Zeilen
+ */
+export function spaltenText(
+  z: Zeichner,
+  t: string,
+  x: number,
+  y: number,
+  breite: number,
+  groesse: number,
+  opts: {
+    fett?: boolean;
+    farbe?: RGB;
+    mindest?: number;
+    zeilenAbstand?: number;
+    /** nur eine Zeile zulassen (z. B. wenn darunter schon etwas steht) */
+    einzeilig?: boolean;
+  } = {}
+): number {
+  const mindest = opts.mindest ?? 6;
+  const abstand = opts.zeilenAbstand ?? 3.4;
+  const zeichne = (text: string, yy: number, g: number) =>
+    z.text(text, x, yy, g, { fett: opts.fett, farbe: opts.farbe });
+
+  if (z.textBreite(t, groesse, opts.fett) <= breite) {
+    zeichne(t, y, groesse);
+    return 1;
+  }
+
+  // 1) kleiner setzen
+  for (let g = groesse - 0.5; g >= mindest; g -= 0.5) {
+    if (z.textBreite(t, g, opts.fett) <= breite) {
+      zeichne(t, y, g);
+      return 1;
+    }
+  }
+
+  // 2) umbrechen – bevorzugt an " / ", sonst an Leerzeichen
+  const g = mindest;
+  if (!opts.einzeilig) {
+    const trenner = t.includes(" / ") ? " / " : " ";
+    const teile = t.split(trenner);
+    if (teile.length > 1) {
+      let erste = teile[0];
+      let i = 1;
+      while (
+        i < teile.length &&
+        z.textBreite(erste + trenner + teile[i], g, opts.fett) <= breite
+      ) {
+        erste += trenner + teile[i];
+        i++;
+      }
+      const zweite = teile.slice(i).join(trenner);
+      if (i < teile.length && z.textBreite(zweite, g, opts.fett) <= breite) {
+        zeichne(erste + (trenner === " / " ? " /" : ""), y, g);
+        zeichne(zweite, y - abstand, g);
+        return 2;
+      }
+    }
+  }
+
+  // 3) kürzen
+  let kurz = t;
+  while (kurz.length > 1 && z.textBreite(`${kurz}…`, g, opts.fett) > breite)
+    kurz = kurz.slice(0, -1);
+  zeichne(`${kurz}…`, y, g);
+  return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -208,25 +372,49 @@ export async function schriftkopf(
       /* fehlerhaftes Logo ignorieren */
     }
   } else {
-    z.text(fd.firma || "—", x + 2, y + 34, 9, { fett: true });
+    zelle(z, fd.firma || "—", x + 2, y + 34, 41, 9, { fett: true });
   }
 
   // rechte Zelle: bei vorhandenem Logo den Firmennamen als Text ergänzen
-  if (fd.logoDataUrl) z.text(fd.firma || "", x + 47, y + 35.5, 8, { fett: true });
-  z.text(fd.planersteller ? `Erstellt: ${fd.planersteller}` : "", x + 47, y + 31.5, 7, { farbe: GRAU });
+  if (fd.logoDataUrl) zelle(z, fd.firma || "", x + 47, y + 35.5, 71, 8, { fett: true });
+  zelle(
+    z,
+    fd.planersteller ? `Erstellt: ${fd.planersteller}` : "",
+    x + 47,
+    y + 31.5,
+    71,
+    7,
+    { farbe: GRAU }
+  );
 
   z.text("Bauvorhaben", x + 2, y + 26.5, 6, { farbe: GRAU });
-  z.text(fd.bauvorhaben || "—", x + 2, y + 21.5, 9, { fett: true });
+  zelle(z, fd.bauvorhaben || "—", x + 2, y + 21.5, B - 4, 9, { fett: true });
 
   z.text("Planinhalt", x + 2, y + 16.5, 6, { farbe: GRAU });
-  z.text(d.planinhalt, x + 2, y + 11.5, 9, { fett: true });
+  zelle(z, d.planinhalt, x + 2, y + 11.5, B - 4, 9, { fett: true });
 
+  // Die untere Zeile hat drei Zellen: 40 | 40 | 40 mm. Vor allem die Adresse
+  // ist beliebig lang – ohne Begrenzung stand sie quer über Datum und Blatt.
   z.text("Adresse", x + 2, y + 6.5, 6, { farbe: GRAU });
-  z.text(fd.adresse || "—", x + 2, y + 2, 7.5);
+  zelle(z, fd.adresse || "—", x + 2, y + 2, 37, 7.5);
   z.text("Datum / Maßstab", x + 42, y + 6.5, 6, { farbe: GRAU });
-  z.text(`${fd.datum || ""}  ${d.massstab}`, x + 42, y + 2, 7.5);
+  zelle(z, `${fd.datum || ""}  ${d.massstab}`, x + 42, y + 2, 37, 7.5);
   z.text("Blatt", x + 82, y + 6.5, 6, { farbe: GRAU });
-  z.text(d.blatt, x + 82, y + 2, 7.5);
+  zelle(z, d.blatt, x + 82, y + 2, 36, 7.5);
+}
+
+/** Eine Zelle des Schriftkopfs: eine Zeile, die ihr Feld nie verlässt */
+function zelle(
+  z: Zeichner,
+  t: string,
+  x: number,
+  y: number,
+  breite: number,
+  groesse: number,
+  opts: { fett?: boolean; farbe?: RGB } = {}
+) {
+  if (!t) return;
+  spaltenText(z, t, x, y, breite, groesse, { ...opts, mindest: 5.5, einzeilig: true });
 }
 
 /* ------------------------------------------------------------------ */

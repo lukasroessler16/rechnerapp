@@ -18,6 +18,7 @@ import {
   mm,
   de,
   formSkizze,
+  spaltenText,
   GRAU,
   HELLGRAU,
 } from "./helpers";
@@ -141,7 +142,9 @@ export async function erzeugeStueckliste(
             ? p.segmente.map((s) => de(s)).join(" / ")
             : `L = ${de(p.laenge)}`;
       z.text(p.nr, spalten[0].x + 1, y - 5.5, 8, { fett: true });
-      z.text(bez, spalten[1].x + 1, y - 5.5, 7.5);
+      // Die Textspalten werden auf ihre Breite gebracht: Ein Rechteckbügel
+      // liefert fünf Schenkelmaße, die sonst in die Stückzahl hineinliefen.
+      spaltenText(z, bez, spalten[1].x + 1, y - 5.5, spalten[1].b - 2, 7.5);
       formSkizze(
         z,
         p,
@@ -150,14 +153,16 @@ export async function erzeugeStueckliste(
         spalten[2].b - 4,
         ZEILE_H - 5,
       );
-      z.text(abm, spalten[3].x + 1, y - 5.5, 7.5);
+      spaltenText(z, abm, spalten[3].x + 1, y - 5.5, spalten[3].b - 2, 7.5);
       z.text(String(p.stueck), spalten[4].x + 1, y - 5.5, 8);
       z.text(de(p.gewichtJeStueck), spalten[5].x + 1, y - 5.5, 8);
       z.text(de(p.gewichtGesamt, 1), spalten[6].x + 1, y - 5.5, 8, {
         fett: true,
       });
       // Kurzform (1–3 Wörter) – der vollständige Text steht in der Biegeliste
-      z.text(p.kurz, spalten[7].x + 1, y - 5.5, 7, { farbe: GRAU });
+      spaltenText(z, p.kurz, spalten[7].x + 1, y - 5.5, spalten[7].b - 1, 7, {
+        farbe: GRAU,
+      });
       z.linie(15, y - ZEILE_H + 1, 195, y - ZEILE_H + 1, 0.2, GRAU);
       y -= ZEILE_H;
     }
