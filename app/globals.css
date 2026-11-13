@@ -1186,3 +1186,17 @@ table.vergleich tbody tr:last-child td {
   color: var(--fehler);
 }
 .stelle-ergebnis.zuwenig strong { color: var(--fehler); }
+
+/* Block „Für alle Stellen" im Bewehrungsschritt: gehört dazu, ist aber
+   keine einzelne Bewehrungsstelle – deshalb ruhiger gehalten. */
+.stelle.gilt-fuer-alle {
+  background: #f7f8fa;
+  border-style: dashed;
+}
+.stelle.gilt-fuer-alle .stelle-kopf h3 {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}

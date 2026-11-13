@@ -39,14 +39,16 @@ await seite.waitForSelector("text=Anschluss unten");
 await seite.click("text=Weiter →");
 await seite.waitForSelector("text=Flächenbewehrung");
 // Je Anschluss, je Öffnung und für die Fläche ein eigener Unterpunkt
-const stellen = await seite.locator("section.stelle").count();
+// (der Block „Für alle Stellen" oben zählt nicht mit – er hat keine Nummer)
+const stellen = await seite.locator("section.stelle .stelle-nr").count();
 if (stellen < 6)
   throw new Error(`Zu wenige Bewehrungs-Unterpunkte: ${stellen} (erwartet mindestens 6).`);
 
 // Eine zu dünne Flächenbewehrung muss den Kauf sperren, nicht nur warnen
 await seite.click("text=Stabbewehrung");
-await seite.selectOption("section.stelle >> nth=0 >> select", "8");
-await seite.fill("section.stelle >> nth=0 >> input[type=number]", "30");
+const flaeche = seite.locator('section.stelle:has-text("Flächenbewehrung")');
+await flaeche.locator("select").selectOption("8");
+await flaeche.locator("input[type=number]").fill("30");
 await seite.waitForSelector("text=das reicht nicht");
 
 // zurück auf die Vorgabe

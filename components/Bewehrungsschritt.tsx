@@ -89,6 +89,44 @@ export default function Bewehrungsschritt({
         Stahl überall ändern – die Stückzahl rechnet das Programm neu.
       </p>
 
+      {/*
+        Die Lagen gelten für ALLE Stellen zugleich: Sie verdoppeln die
+        Anschlusseisen ebenso wie die Flächenbewehrung. Deshalb stehen sie
+        hier oben und nicht in einem der Blöcke darunter – und deshalb
+        gehören sie in diesen Schritt und nicht zu den Betonparametern.
+      */}
+      {modul.flaechenbewehrt && (
+        <section className="stelle gilt-fuer-alle">
+          <div className="stelle-kopf">
+            <h3>Für alle Stellen</h3>
+          </div>
+          <div className="reihe">
+            <div className="feld">
+              <label>
+                Bewehrungslagen
+                <Erklaerung thema="lagen" />
+              </label>
+              <select
+                value={projekt.parameter.lagen}
+                onChange={(e) =>
+                  set((p) => ({
+                    ...p,
+                    parameter: { ...p.parameter, lagen: Number(e.target.value) as 1 | 2 },
+                  }))
+                }
+              >
+                <option value={1}>einlagig (mittig bzw. unten)</option>
+                <option value={2}>zweilagig (beidseitig)</option>
+              </select>
+              <div className="hinweis">
+                ab d ≥ 20 cm üblicherweise zweilagig – wirkt auf die Fläche und
+                auf alle Anschlüsse
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {stellen.map((stelle, i) => (
         <StellenBlock
           key={stelle.id}

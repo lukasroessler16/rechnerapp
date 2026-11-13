@@ -256,7 +256,14 @@ export const STELLE = {
     },
   }),
 
-  /** Anschluss-, Stoß- und Eckeisen: Ø10 im gewählten Raster */
+  /**
+   * Anschluss-, Stoß- und Eckeisen: Ø10 im Regelraster.
+   *
+   * `parameter.stababstand` ist nur noch die Vorgabe, mit der eine solche
+   * Stelle startet – eingestellt wird der Abstand je Stelle im Schritt
+   * „Bewehrung". Das Feld bleibt im Projekt erhalten, damit bezahlte Links
+   * aus der Zeit davor unverändert dieselben Dokumente ergeben.
+   */
   anschluss: (
     projekt: Projekt,
     id: string,

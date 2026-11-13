@@ -102,14 +102,6 @@ export const ERKLAERUNGEN: Record<string, Erklaerungstext> = {
       "Höhere Werte nur, wenn die Matte wirklich voll ausgenutzt wird – das sagt Ihnen die Tragwerksplanung.",
     ],
   },
-  stababstand: {
-    titel: "Raster der Anschlussbewehrung",
-    text: [
-      "Anschlusseisen verbinden ein Bauteil mit dem nächsten, etwa die Wand mit der Bodenplatte. Der Wert gibt an, in welchem Abstand diese Stäbe gesetzt werden.",
-      "Enger heißt mehr Stahl und mehr Arbeit, aber eine gleichmäßigere Kraftübertragung.",
-    ],
-    merke: ["Ø10 alle 25 cm ist der übliche Standard im Wohnbau."],
-  },
 };
 
 /**

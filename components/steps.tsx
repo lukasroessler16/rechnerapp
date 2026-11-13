@@ -774,64 +774,21 @@ export function Step5Parameter({ projekt, set, nr }: StepProps) {
       </section>
 
       {/*
-        Mattenwahl, Übergreifungsstoß und das Raster der Anschlusseisen stehen
-        NICHT mehr hier: Sie gehören zu einzelnen Bewehrungsstellen und werden
-        im Schritt „Bewehrung" je Stelle gewählt (components/Bewehrungsschritt).
-        Hier bleibt, was für das ganze Bauteil gilt.
+        Was zur Bewehrung gehört, steht im Schritt „Bewehrung": Matte oder
+        Stab, Durchmesser, Abstand und Übergreifungsstoß – je Stelle. Auch
+        die Bewehrungslagen stehen dort, weil sie für alle Stellen zugleich
+        gelten. Hier bleibt nur, was den Beton und den Stahl als Werkstoff
+        betrifft.
       */}
-      {mitMatten ? (
-        <section className="gruppe">
-          <h3 className="gruppe-titel">Flächenbewehrung</h3>
-
-          <div className="reihe">
-            <div className="feld">
-              <label>
-                Bewehrungslagen
-                <Erklaerung thema="lagen" />
-              </label>
-              <select
-                value={par.lagen}
-                onChange={(e) => setPar({ lagen: Number(e.target.value) as 1 | 2 })}
-              >
-                <option value={1}>einlagig (mittig bzw. unten)</option>
-                <option value={2}>zweilagig (beidseitig)</option>
-              </select>
-              <div className="hinweis">ab d ≥ 20 cm üblicherweise zweilagig</div>
-            </div>
-
-            <div className="feld">
-              <label>
-                Raster der Anschlussbewehrung
-                <Erklaerung thema="stababstand" />
-              </label>
-              <select
-                value={par.stababstand}
-                onChange={(e) => setPar({ stababstand: Number(e.target.value) })}
-              >
-                <option value={150}>15 cm (eng)</option>
-                <option value={200}>20 cm</option>
-                <option value={250}>25 cm (Standard)</option>
-              </select>
-              <div className="hinweis">
-                Vorgabe für die Anschlüsse – je Stelle im Schritt „Bewehrung“ änderbar
-              </div>
-            </div>
-          </div>
-
-          <div className="hinweis">
-            Welche Matte, welcher Übergreifungsstoß und ob überhaupt Matten oder
-            Stäbe: Das steht im Schritt „Bewehrung“ bei der Flächenbewehrung.
-          </div>
-        </section>
-      ) : (
+      {!mitMatten && (
         <section className="gruppe">
           <h3 className="gruppe-titel">Stabbewehrung</h3>
           <div className="hinweis" style={{ marginBottom: 14 }}>
             {modul.name}: Durchmesser, Anzahl und Bügelabstände ergeben sich aus
             Querschnitt, Betondeckung und Bauteillänge – sie werden nach EC2
-            automatisch gewählt und stehen in der Ergebnisübersicht unten sowie
-            in der Biegeliste. Mattenangaben entfallen hier, weil dieses Bauteil
-            nicht flächig mit Matten bewehrt wird.
+            automatisch vorgeschlagen und sind im Schritt „Bewehrung“ je Stelle
+            änderbar. Mattenangaben entfallen hier, weil dieses Bauteil nicht
+            flächig mit Matten bewehrt wird.
           </div>
         </section>
       )}
